@@ -1,5 +1,4 @@
 ---
-layout:     post
 title:      "Python for Data Science"
 subtitle:   "A Bestiary"
 date:       2015-10-07 12:00:00

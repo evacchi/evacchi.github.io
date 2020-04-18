@@ -1,5 +1,4 @@
 ---
-layout: post
 title:  "Acknowledgements"
 date:   2015-01-23 
 categories: 

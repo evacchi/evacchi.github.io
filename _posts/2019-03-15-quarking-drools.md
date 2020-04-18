@@ -1,5 +1,4 @@
 ---
-layout: post
 title:  Quarking Drools
 subtitle: How and why we turned our 13 years old Java project into a first-class serverless component
 date:   2019-03-16 

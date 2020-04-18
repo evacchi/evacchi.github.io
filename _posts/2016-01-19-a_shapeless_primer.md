@@ -1,5 +1,4 @@
 ---
-layout:     post
 title:      "Be Like Water"
 subtitle:   "A Shapeless Primer"
 date:       2016-01-19 12:00:00
