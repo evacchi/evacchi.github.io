@@ -1,7 +1,10 @@
 remote_theme: thelehhman/plainwhite-jekyll
+title: |
+  Middle of Nowhere  
 plainwhite:
-  name: Edoardo Vacchi
+  name: Middle of Nowhere
   tagline: |
+    @evacchi
     Programming Language Nerd 
     Kogito @ Red Hat
 
