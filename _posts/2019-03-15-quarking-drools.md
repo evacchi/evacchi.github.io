@@ -1,10 +1,14 @@
 ---
 title:  Quarking Drools
 subtitle: How and why we turned our 13 years old Java project into a first-class serverless component
+categories: [Drools, Quarkus, Kogito]
 date:   2019-03-16 
----
+originally: 
+  Red Hat Developersasasdaasd blog: https://developers.redhat.com/blog/2019/03/14/quarking-drools-how-we-turned-a-13-year-old-java-project-into-a-first-class-serverless-component/
+  Red Hat Developers blog: https://developers.redhat.com/blog/2019/03/14/quarking-drools-how-we-turned-a-13-year-old-java-project-into-a-first-class-serverless-component/
+  Drools and jBPM blog: http://blog.athico.com/2019/03/quarking-drools-how-we-turned-13-year.html
 
-This post has been originally published on [Red Hat Developers blog](https://developers.redhat.com/blog/2019/03/14/quarking-drools-how-we-turned-a-13-year-old-java-project-into-a-first-class-serverless-component/) and on the [Drools and jBPM blog](http://blog.athico.com/2019/03/quarking-drools-how-we-turned-13-year.html)
+---
 
 > The question of whether a computer can think is no more interesting
 than the question of whether a submarine can swim. (*Edsger W.

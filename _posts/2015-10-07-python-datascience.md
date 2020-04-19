@@ -5,7 +5,7 @@ date:       2015-10-07 12:00:00
 author:     "Edoardo Vacchi"
 header-img: "img/2015-10-07-python-datascience/cover.jpg"
 comments:   true
-tags:       [data-science]
+categories: [Python, Data Science]
 ---
 
 These are the slides for a talk I gave recently.

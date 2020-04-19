@@ -5,10 +5,11 @@ date:       2016-01-19 12:00:00
 author:     "Edoardo Vacchi"
 header-img: "img/2016-01-19-a_shapeless_primer/water-drop.jpg"
 comments:   true
-tags:       [scala,type-programming]
----
+categories:       [Scala, Type-level Programming]
+originally: 
+  rnduja.github.io: http://rnduja.github.io/2016/01/19/a_shapeless_primer/
 
-This post was originally published on [rnduja.github.io](http://rnduja.github.io/2016/01/19/a_shapeless_primer/).
+---
 
 Shapeless is a Scala library for [generic programming](https://en.wikipedia.org/wiki/Generic_programming). The name “Shapeless” comes from a famous Bruce Lee quote:
 

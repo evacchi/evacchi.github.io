@@ -1,7 +1,7 @@
 ---
 title:  "Acknowledgements"
 date:   2015-01-23 
-categories: 
+categories: PhD
 tags: 
 image: /assets/article_images/2014-08-29-welcome-to-jekyll/desktop.jpg
 ---
