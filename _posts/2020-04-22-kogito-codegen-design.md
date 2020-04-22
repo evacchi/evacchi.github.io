@@ -55,19 +55,9 @@ Let's see more in detail how this procedure works.
 
 In Kogito, the code-generation procedure is designed in **stages**. 
 
-      +-----------+      +-----------+      +-----------+
-      |           |      |           |      |           |
-      | Processes +----->+   Rules   +----->+ Decisions |
-      |           |      |           |      |           |
-      +-----+-----+      +-----+-----+      +-----+-----+
-            |                  |                  |
-            |                  |                  |
-       +----v----+        +----v----+        +----v----+
-       |         |        |         |        |         |
-       | Codegen |        | Codegen |        | Codegen |
-       |         |        |         |        |         |
-       +---------+        +---------+        +---------+
-
+<div style="margin:auto">
+<img src="https://i.imgur.com/YvzSkJT.png" alt="Stages" width="50%" />
+</div>
 
 First, **processes** (BPMN files) are analyzed, then **rules** (DRLs), then **decisions** (DMNs). Each stage, as a result, generates Java source code; compilation is delegated to the Java compiler. In modern parlance, this would be called a _"transpiler"_; a term that I despise, because it makes it sound like compilers do not just generate code but do some kind of magic mumbo-jumbo. But that's another story. Whatever you want to call it, our current architecture of this procedure is rigid, and does not allow for extension
 
@@ -85,13 +75,11 @@ So far, our code-generation procedure has been pretty simplistic: we generated c
 
 By refactoring our compilation phases to a staged, modular compilation architecture we will be able to catch resolution and validation errors early and present them to users in a meaningful way: only when the validation phase will be completed successfully, then we will actually generate code. But we also want our stages to be smaller, so that it is easier to **add more compilation stages** at different points in the pipeline.
 
-    Processes, Rules, Decisions:
+Processes, Rules, Decisions:
 
-    +-----------------+      +------------------+      +-------------------+      +-----------------+
-    |                 |      |                  |      |                   |      |                 |
-    | Name Resolution +----->+ Model Validation +----->+ Cross-Referencing +----->+ Code-Generation |
-    |                 |      |                  |      |                   |      |                 |
-    +-----------------+      +------------------+      +-------------------+      +-----------------+
+<div style="margin:auto">
+<img src="https://i.imgur.com/2ffP9Sl.jpg" alt="Processes, Rules, Decisions" />
+</div>
 
 
 For instance, suppose you want to synthesize some elements (e.g. data models) that are inferred from the structure of a process. In our current architecture, the only way to produce additional assets would be to patch the existing code. By de-composing the phases as shown above, you would be able to **plug your additional [mini-phase][nanopass]** right after "Model Validation", so that you can be sure that all the names have been resolved, and that only valid models will be processed: you will produce an intermediate representation for the data model that you want to synthesize, and make it available during the "Cross-Referencing" phase.
