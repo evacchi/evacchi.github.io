@@ -131,6 +131,8 @@ You should now have a better understanding of the rationale for code generation 
 
 In the future we will further document how we plan to refactor our codebase to support these novel use cases. 
 
+Join us for discussion on our [mailing list][ml] or our [Zulip Chat][zulip] !
+
 [kogito]: https://kogito.kie.org
 [vdm19]: https://youtu.be/TWfigR9wGsA
 [qconsp19]: https://www.youtube.com/watch?v=BUrY6On1SxM
@@ -143,3 +145,5 @@ In the future we will further document how we plan to refactor our codebase to s
 [micronaut]: https://micronaut.io
 [quarkus]: https://quarkus.io
 [cdilite]: http://www.cdi-spec.org/news/2020/03/09/CDI_for_the_future/
+[ml]: https://groups.google.com/forum/#!forum/kogito-development
+[zulip]: https://kie.zulipchat.com/
