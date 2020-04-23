@@ -1,7 +1,7 @@
 ---
 title:  'Kogito: A Modular Codegen Design Proposal'
 categories: [Compilers, Kogito]
-date:   2020-04-22
+date:   2020-04-23
 ---
 
 My favorite topic of discussion last year was _moving computations to compile-time_. 
