@@ -55,8 +55,8 @@ Let's see more in detail how this procedure works.
 
 In Kogito, the code-generation procedure is designed in **stages**. 
 
-<div style="margin:auto">
-<img src="https://i.imgur.com/YvzSkJT.png" alt="Stages" width="50%" />
+<div style="margin:auto; text-align:center">
+<img src="https://i.imgur.com/YvzSkJT.png" alt="Stages" width="70%" />
 </div>
 
 First, **processes** (BPMN files) are analyzed, then **rules** (DRLs), then **decisions** (DMNs). Each stage, as a result, generates Java source code; compilation is delegated to the Java compiler. In modern parlance, this would be called a _"transpiler"_; a term that I despise, because it makes it sound like compilers do not just generate code but do some kind of magic mumbo-jumbo. But that's another story. Whatever you want to call it, our current architecture of this procedure is rigid, and does not allow for extension
