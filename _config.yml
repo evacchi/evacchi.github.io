@@ -16,6 +16,8 @@ plainwhite:
     linkedIn: in/edoardovacchi 
 
 show_excerpts: false
+plugins:
+- jekyll-seo-tag
 
 #  navigation:
 #    - title: My Work
