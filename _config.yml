@@ -7,7 +7,7 @@ plainwhite:
     Edoardo Vacchi
     Programming Language Nerd 
     Kogito @ Red Hat
-
+  portfolio_image: "assets/portfolio.png"
   date_format: "%b %-d, %Y"
 
   social_links:
