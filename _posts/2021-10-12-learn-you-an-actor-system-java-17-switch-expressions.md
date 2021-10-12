@@ -991,7 +991,8 @@ In the meantime, you can try it for yourself!
 
 ## Acknowledgements
 
-- [Viktor Klang][klang] published the original snippet
+- [Viktor Klang][klang] published the original snippet and reviewed a draft of this post
+- [Max Andersen](https://xam.dk) is the author of [JBang][jbang] and reviewed a draft of this post
 - I thook some inspiration from [Bob Nystrom's Crafting Interpreters](https://craftinginterpreters.com/) for the writing style of this tutorial
 - [Miran Lipovaca for the title of his Haskell book](http://learnyouahaskell.com/)
 
