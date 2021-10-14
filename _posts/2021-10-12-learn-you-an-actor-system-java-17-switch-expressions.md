@@ -6,7 +6,7 @@ date:   2021-10-12
 ---
 
 In 2012, [Viktor Klang][klang] published a [tiny Java snippet][actorjava] that implemented a tiny actor system in about  
-about 20 lines of code; a few years later, [a revised version](minscalaactors) showed how to do the same in Scala.
+about 20 lines of code; a few years later, [a revised version][minscalaactors] showed how to do the same in Scala.
 
 I think untyped actors in the style of [Akka Classic][akka-classic] have always felt clunky in Java; 
 Java used to lack a way to express pattern matching concisely. 
