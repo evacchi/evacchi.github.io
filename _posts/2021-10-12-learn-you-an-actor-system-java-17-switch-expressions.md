@@ -199,15 +199,11 @@ The long computation will start and run asynchronously in the background, while
 the response will float back to the sender.
 
 
-```
-                                              ┌────────────────┐
-        Request  ┌────────────────┐  Spawns   │  Computation   │
- User ──────────▶│  HTTP Handler  │─ ─ ─ ─ ─ ▶│    Watchdog    │
-   ▲             └────────────────┘           │                │
-   │                      │                   └────────────────┘
-   └──────────────────────┘                                     
-             Ack                                                
-```
+
+<div>
+<img src="/assets/actor/diag-spawn.png" alt="Diagram of an HTTP request actor" />
+</div>
+
 
 At its core, an actor is just a routine with a message queue. 
 Instead of being evaluated synchronously, the routine is "posted" a message. 
@@ -625,26 +621,22 @@ class StatefulPonger implements Behavior {
 <img src="/assets/actor/vending.jpg" alt="A drawing of a vending machine" />
 </div>
 
+In the previous example, we saw how we can use actors to maintain mutable state. 
+
+But we also saw that when an actor receives a message it returns an `Effect`; that is, a *transition*
+to a different behavior. So far we only only used two built-in effects: `Stay` and `Die`. 
+But we can use the `Become` mechanism to change the behavior of our actors upon receiving a message. In other words, actors can be used to implement *state machines*.  
+
+A classic example of a state machine is the *vending machine*: a vending machine awaits for a specific amount of coins before it allows to pick a choice. Let us implement a simple vending machine using our actor runtime.
+
 Suppose that you are developing a vending machine that waits for you 
 to insert an amount of 100 before you can pick a choice. Then you can pick your choice and your item will be retrieved. For simplicity, we assume that each coin has a value between 1 and 100.
 
 
+<div>
+<img src="/assets/actor/diag-vend.png" alt="Diagram of the state machine" />
+</div>
 
-```
-                                                                                      
-                                                                    Choice            
-┌────────────────────────────────────────────────────────────────────────────────────┐
-│                                   Coin                                             │
-│                                 ┌───────┐                                          │
-│                                 │       │                                          │
-│                                 │       │                                          │
-│  ┌────────────┐  Coin    ┌────────────┐ │  Coin && count >= 100   ┌────────────┐   │
-└─▶│  initial   ├─────────▶│  waitCoin  │─┼────────────────────────▶│    vend    │───┘
-   └──────▲─────┘          └────────────┘ │                         └────────────┘    
-          │                       ▲       │                                           
-          │                       │       │                                           
-          │                       └───────┘                                           
-```
 
 The messages will be:
 
