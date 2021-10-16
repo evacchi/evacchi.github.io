@@ -8,6 +8,10 @@ date:   2021-10-12
 In 2012, [Viktor Klang][klang] published a [tiny Java snippet][actorjava] that implemented a tiny actor system in about  
 about 20 lines of code; a few years later, [a revised version][minscalaactors] showed how to do the same in Scala.
 
+<div style="float:right">
+<img src="/assets/actor/shakespeare.jpg" alt="Whimsical sketch of Shakespeare" />
+</div>
+
 I think untyped actors in the style of [Akka Classic][akka-classic] have always felt clunky in Java; 
 Java used to lack a way to express pattern matching concisely. 
 However, a few days ago I realized that Java 17 provides enough syntactic sugar 
@@ -416,6 +420,10 @@ In the previous example, the actor was consuming messages of *any* type (`Object
 Let us now make it more interesting, and only accept *some* types. 
 This is where pattern matching and records come in handy.
 
+<div style="float:right">
+<img src="/assets/actor/pingpong.jpg" alt="A drawing of two ping-pong rackets" />
+</div>
+
 An actor routine usually matches a pattern against the incoming message.
 In Java versions before 17, `switch` expression and pattern matching
 support was experimental; in general, they are very recent additions 
@@ -612,6 +620,10 @@ class StatefulPonger implements Behavior {
 > ```sh
 > j! https://gist.github.com/evacchi/a46827cdcbdfefd93cf003459bb6fee1
 > ```
+
+<div style="float:right">
+<img src="/assets/actor/vending.jpg" alt="A drawing of a vending machine" />
+</div>
 
 Suppose that you are developing a vending machine that waits for you 
 to insert an amount of 100 before you can pick a choice. Then you can pick your choice and your item will be retrieved. For simplicity, we assume that each coin has a value between 1 and 100.
