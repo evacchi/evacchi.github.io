@@ -2,12 +2,94 @@
 title:  'Write You A Chat For Great Good! (with Java 17, actors, and JBang!)'
 subtitle: ''
 categories: [Java, Records, JBang]
-date:   2021-10-12
+date:   2021-11-03
 ---
 
-Hello! Welcome back to this blog series! In this blog post we will use our [minimalistic actor runtime][minjavactors] to realize a tiny chat system.
+Hello! 
 
-For simplicity, I have decided to use Java's blocking API. Using a blocking API on an actor thread is generally a no-no. You should never block within the body of an actor. Unless you run on a [Loom-enabled JDK][loom], where threads are virtual, light-weight but still pre-emptible.
+Welcome back to this blog series! If you haven't read [the previous post][minjavactors] jump there to learn how to write a [minimalistic actor runtime][minjavactors] using Java 17.
+
+As promised, with this blog post, I am showing how to write a tiny chat client/server.
+
+For simplicity, I have decided to use [Java's blocking Socket API][socket]. Now, you should always avoid calling a blocking API from the body of an actor, because you will block the entire underlying thread.
+However, we will do damage-control by creating a special actor system for I/O, on its own thread pool. 
+
+On a related note, on a [Loom-enabled JDK][loom], where threads are virtual, light-weight but still pre-emptible, even blocking I/O operations won't result in blocking a "real" OS thread. But until that lands in a stable JDK release, we will have to make do.
+
+## Overview
+
+Everyone knows how a chat client works. 
+
+Each user picks a nickname, connects to a server through their client and then they write their messages. The client waits for user input and displays the messages that it receives from the server to the screen.
+
+The role of the chat server is to accept inconming connections from the clients, receive messages from each client and propagate them to all the clients that are connected at that time.
+
+In a Java program, the `ServerSocket` API provides all you need to `accept()` incoming connections from clients. Here is a naive snippet
+that is omitting all the details of spawning and handling threads, and all of the concurrency issues    :
+
+```java
+class Server {
+    ServerSocket serverSocket;
+    List<ClientHandler> clientHandlers;
+    Server() {
+        serverSocket = new ServerSocket(port);
+        clientHandlers = new ArrayList<>();
+    }
+    void start() throws IOException {
+        while (true) {
+            // blocks until a new connection is established
+            var clientSocket = serverSocket.accept();
+            // then for each clientSocket...
+            var handler = new ClientHandler(clientSocket, this);
+            clientHandlers.add(handler);
+            /* start handler.read() in a separate thread */
+        }
+    }
+    // called by clientHandlers that want to propagate
+    // messages to all the connected clients
+    void broadcast(String msg) {
+        for (var handler: clientHandlers) {
+            handler.write(msg);
+        }
+    }
+}
+```
+
+The `ClientHandler` class will read from the socket's `inputStream` and provide the `write()` method, writing to the socket's `outputStream`.
+
+```java
+class ClientHandler {
+    Server parent; BufferedReader in; PrintWriter out;
+    
+    ClientHandler(Socket clientSocket, Server server) {
+        // get the in/out streams from the socket
+        in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+        out = new PrintWriter(clientSocket.getOutputStream(), true);
+        // keep a handle to the server to propagate messages back
+        parent = server;
+    }
+    void read() throws IOException {
+        while (in.ready()) {
+            var line = parse(in.nextLine());
+            // for each line, broadcast to all other connected clients
+            parent.broadcast(line);
+        }
+    }
+    // called by server.broadcast()
+    void write(String msg) {
+        out.println(msg);
+    }    
+}
+```
+
+Now you will have noticed at at least two issues:
+
+1. `Server#start` blocks the main thread 
+2. `ClientHandler#read()` needs necessarily to run on the same threa
+
+and I am sure you may be able to spot more; for instance, it is probably safer to guard the `Server#write()` and the `ClientHandler#broadcast()` from concurrent accesses with `synchronized`
+
+Now, by writing this using actors, we will be guaranteed that the actor body is completely single-threaded and safe. Moreover, we will be forced to think about the concerns of our system, which may result in encapsulate each in their own actor.
 
 ## Boilerplate
 
@@ -30,7 +112,7 @@ We can now create plain `Behavior`s as our actor runtimes expect by defining the
 
 ```java
 interface IOBehavior {
-    ...
+    Actor.Effect apply(Object msg) throws IOException;
     static Actor.Behavior of(IOBehavior behavior) {
         return msg -> {
             try { return behavior.apply(msg); } 
@@ -42,10 +124,12 @@ interface IOBehavior {
 This way we can create an actor that catches and rethrows `IOException`s as such
 
 ```java
-  var myActor = sys.actorOf(self -> IOBehavior(msg -> /* IO-throwing body */))
+  var myActor = sys.actorOf(self -> IOBehavior.of(msg -> /* IO-throwing body */))
 ```
 
 ### Polling
+
+![img](/assets/actor-2/server-poll.png)
 
 The blocking API will require polling. Normally we would implement this as a `while` loop 
 of the form:
@@ -89,7 +173,39 @@ scheduler.schedule(() -> self.tell(Poll), 1, SECONDS);
 
 ## Chat Server
 
+The simple architecture of our chat server is to have two root actors in our system
+
+
+1. The `serverSocketHandler` waits for incoming connection on a Java `ServerSocket`. When there is a new incoming connection, it sends a `CreateClient` message to the `clientManager`.
+
+2. The Client Manager creates and keeps track of all the active clients. When a client sends a message, it forwards the message to all the clients.
+
+
+
+accepts two types of messages:
+- `CreateClient` 
+- `Message` 
+
+Each time a `CreateClient` message is received, it  spawns two actor:
+
+- a `clientOutput` actor to forward messages
+- a `clientInput` actor to receive input from each client
+
+
+![img](/assets/actor-2/actor-create.gif)
+
+
+The `clientInput` listens for input coming from the client socket. When input is available, it parses the input and forwards it as a `Message` object that is sent back to the `clientManager`.
+
+
+Because the Client Manager keeps track of all Client Output actors, it is able
+to forward that message to all of them
+
+![img](/assets/actor-2/message.gif)
+
 Our chat server will receive incoming connections
+
+![img](/assets/actor-2/server-poll.gif)
 
 
 The "core" of the server is really an actor I have called the `clientManager`.
@@ -327,6 +443,6 @@ var serverSocketReader = sys.actorOf(self -> lineReader(self,
         }));
 ```
 
-
 [minjavactors]: blah
+[socket]: socket
 [loom]: loom
