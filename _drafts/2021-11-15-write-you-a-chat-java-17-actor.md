@@ -20,6 +20,8 @@ On a related note, on a [Loom-enabled JDK][loom], where threads are virtual, lig
 
 Everyone knows how a chat client works. 
 
+![img](/assets/actor-2/chat.gif)
+
 Each user picks a nickname, connects to a server through their client and then they write their messages. The client waits for user input and displays the messages that it receives from the server to the screen.
 
 The role of the chat server is to accept inconming connections from the clients, receive messages from each client and propagate them to all the clients that are connected at that time.
