@@ -7,33 +7,52 @@ date:   2021-11-03
 
 Hello! 
 
-Welcome back to this blog series! If you haven't read [the previous post][minjavactors] jump there to learn how to write a [minimalistic actor runtime][minjavactors] using Java 17.
+Welcome back to ["Learn You An Actor (System) For Great Good!"][minjavactors]. If you haven't read [the first part][minjavactors], jump there to learn how to write a [minimalistic actor runtime using Java 17][minjavactors].
 
-As promised, with this blog post, I am showing how to write a tiny chat client/server.
+As promised, in this second part I am showing how to write a tiny chat client/server [using the runtime we wrote last time][minjavactors], that then we will run using [JBang!][jbang] Next time, we will learn how to create a **typed** version of the same actor runtime and revisit the examples!
 
-For simplicity, I have decided to use [Java's blocking Socket API][socket]. Now, you should always avoid calling a blocking API from the body of an actor, because you will block the entire underlying thread.
-However, we will do damage-control by creating a special actor system for I/O, on its own thread pool. 
+For this chat application I have decided to use [the JDK's blocking Socket API][socket]. Now, you should always avoid calling a blocking API from the body of an actor, because you will block the entire underlying thread. However, we will do some damage-control by creating a special actor system for I/O, on its own thread pool. 
 
 On a related note, on a [Loom-enabled JDK][loom], where threads are virtual, light-weight but still pre-emptible, even blocking I/O operations won't result in blocking a "real" OS thread. But until that lands in a stable JDK release, we will have to make do.
 
+Because this post is quite long, here is a table of contents.
+
+- [Overview](#overview)
+  - [A Naive Java Implementation](#a-naive-java-implementation)
+- [Boilerplate](#boilerplate)
+- [Chat Server](#chat-server)
+  - [Boilerplate](#boilerplate) ??
+  - [`clientManager`](#clientmanager)
+  - [`clientOutput`](#clientoutput)
+  - [Polling](#polling)
+  - [`clientInput`](clientinput) 
+  - [`serverSocketHandler`](#serversockethandler)
+- [Chat Client](#chat-client)
+  - [Message Writer](#message-writer)
+
 ## Overview
 
-Everyone knows how a chat client works. 
+Our chat applications will be extremely simple.
 
-![img](/assets/actor-2/chat.gif)
+![Chat application where Duffman says "Are you ready?" to Carl, Lenny and Barney.](/assets/actor-2/chat.gif)
 
-Each user picks a nickname, connects to a server through their client and then they write their messages. The client waits for user input and displays the messages that it receives from the server to the screen.
+Each user picks a nickname, they connect to a server through their client and then they write their messages. The client waits for user input and displays the messages that it receives from the server to the screen.
 
-The role of the chat server is to accept inconming connections from the clients, receive messages from each client and propagate them to all the clients that are connected at that time.
+The chat server accepts incoming connections, receives messages and it propagates them to all the clients that are connected at that time.
 
-In a Java program, the `ServerSocket` API provides all you need to `accept()` incoming connections from clients. Here is a naive snippet
-that is omitting all the details of spawning and handling threads, and all of the concurrency issues    :
+For instance, in this picture `Duffman` is sending the message `"Are you ready?"` to the server, and all of `Carl`, `Lenny` and `Barney` receive it ([to great sadness for Barney, who's the designated driver](https://www.youtube.com/watch?v=eEt-n0ZsYx8)).
+
+### A Naive Java Implementation
+
+In a Java program, the `ServerSocket` API provides all you need to `accept()` incoming connections from clients. 
+
+Here is a naive snippet that is omitting all the details of spawning, handling threads and dealing with concurrency issues:
 
 ```java
 class Server {
     ServerSocket serverSocket;
     List<ClientHandler> clientHandlers;
-    Server() {
+    Server(int port) throws IOException {
         serverSocket = new ServerSocket(port);
         clientHandlers = new ArrayList<>();
     }
@@ -57,60 +76,120 @@ class Server {
 }
 ```
 
-The `ClientHandler` class will read from the socket's `inputStream` and provide the `write()` method, writing to the socket's `outputStream`.
+- The `Server` waits for connections and then it spin loops (`while (true)`); 
+- `accept()` is a blocking API; every time it completes, it will return a new incoming connection (a `Socket`).
+- every incoming connection represents a client connection (`ClientHandler`)
+- we keep each client connection in a `List`
+
+
+The `ClientHandler` class will read from the socket's `inputStream` and provide the `write()` method, writing to the socket's `outputStream`:
 
 ```java
 class ClientHandler {
     Server parent; BufferedReader in; PrintWriter out;
-    
-    ClientHandler(Socket clientSocket, Server server) {
+
+    ClientHandler(Socket clientSocket, Server server) throws IOException {
         // get the in/out streams from the socket
         in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
         out = new PrintWriter(clientSocket.getOutputStream(), true);
         // keep a handle to the server to propagate messages back
         parent = server;
     }
+    // on its own thread
     void read() throws IOException {
         while (in.ready()) {
-            var line = parse(in.nextLine());
+            var line = validate(in.readLine());
             // for each line, broadcast to all other connected clients
             parent.broadcast(line);
         }
     }
+
+    String validate(String readLine) { /* validate or throw */ }
+
     // called by server.broadcast()
     void write(String msg) {
         out.println(msg);
-    }    
+    }
 }
 ```
 
-Now you will have noticed at at least two issues:
+- we read input from each client connection
+- we broadcast every input to the output of all client connections 
 
-1. `Server#start` blocks the main thread 
-2. `ClientHandler#read()` needs necessarily to run on the same threa
+As for the client, it is *slightly* less complicated:
 
-and I am sure you may be able to spot more; for instance, it is probably safer to guard the `Server#write()` and the `ClientHandler#broadcast()` from concurrent accesses with `synchronized`
+- it connects to the server
+- it reads from the connection all the incoming messages
+- it writes each incoming message to the standard output (so the user can see it)
+- it reads user messages from the standard input
 
-Now, by writing this using actors, we will be guaranteed that the actor body is completely single-threaded and safe. Moreover, we will be forced to think about the concerns of our system, which may result in encapsulate each in their own actor.
+```java
+
+class Client {
+    Socket socket; BufferedReader userInput, socketInput; PrintWriter socketOutput;
+    Client(String host, int port) throws IOException {
+        this.socket = new Socket(host, port);
+        this.userInput = new BufferedReader(new InputStreamReader(System.in));
+        this.socketInput = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        this.socketOutput = new PrintWriter(socket.getOutputStream(), true);
+    }
+    // on its own thread
+    void readUserInput() throws IOException {
+        while (userInput.ready()) {
+            var line = parse(userInput.readLine());
+            write(line);
+        }
+    }
+    // on its own thread
+    void readServerInput() throws IOException {
+        while (userInput.ready()) {
+            var line = serialize(userInput.readLine());
+            System.out.println(line); // echo to the user
+            write(line);
+        }
+    }
+    void write(String line) { socketOutput.println(line); }
+    String serialize(String line) { /* serialize */ }
+    String parse(String line) { /* parse or throw */ }
+}
+```
+
+Now you will have noticed that there are quite a few blocking routines:
+
+- `Server#start()`  
+- `ClientHandler#read()`
+- `Client#readUserInput()`
+- `Client#readServerInput()`
+
+Each of these routines should run on its own thread. I am sure you may be able to spot more issues; for instance, it is probably safer to guard the `Server#write()` and the `ClientHandler#broadcast()` from concurrent accesses with `synchronized`.
+
+If we use actors instead, we will be guaranteed that the actor body is completely single-threaded and safe. Moreover, we will be forced to think about the concerns of our system, which may result in encapsulating each concern in its own actor.
 
 ## Boilerplate
 
-Some methods in the `Socket` API will throw `IOException`s, which is a checked exception.
-Checked exception do not play nicely with lambdas, unless you define a method signature 
-that accepts them.
+Some methods in the `Socket` API will throw `IOException`s, which is a checked exception. Checked exception do not play nicely with lambdas, unless you define a method signature that accepts them. So let us define a couple of utilities in a shared library.
 
-### IOBehavior
+I am defining a `ChatBehaviors` interface where I will nest the few utilites
+that will be used across the client and the server. Remember from the [first post][minjavactors]: the reason I am using interfaces is that most members will be `public` `static` by default. 
 
-Let's define a `IOBehavior` interface:
 
 ```java
-interface IOBehavior {
-    Actor.Effect apply(Object msg) throws IOException;
+public interface ChatBehavior {
+
 }
 ```
 
-It is basically *identical* to `Function<Object, Effect>` except it declares a `throws IOException` clause.
-We can now create plain `Behavior`s as our actor runtimes expect by defining the companion static method: 
+Let's nest a `IOBehavior` functional interface:
+
+```java
+public interface ChatBehavior {
+    interface IOBehavior {
+        Actor.Effect apply(Object msg) throws IOException;
+    }
+}
+```
+
+It is basically *identical* to `Function<Object, Effect>` except it declares a `throws IOException` clause. We can now create a companion static method to transform an `IOBehavior` to a `Behavior` that throws an `UncheckedIOException`: we will use this in our actors.
 
 ```java
 interface IOBehavior {
@@ -126,50 +205,7 @@ interface IOBehavior {
 This way we can create an actor that catches and rethrows `IOException`s as such
 
 ```java
-  var myActor = sys.actorOf(self -> IOBehavior.of(msg -> /* IO-throwing body */))
-```
-
-### Polling
-
-![img](/assets/actor-2/server-poll.png)
-
-The blocking API will require polling. Normally we would implement this as a `while` loop 
-of the form:
-
-```java
-while (true) {
-    // do something here
-}
-```
-
-But this is a rookie mistake. You should always put a tiny sleep in your loops
-so that they won't spin and spike the CPU to 100%.
-
-```java
-while (true) {
-    // do something here
-    Thread.sleep(someSmallAmount);
-}
-```
-
-
-We will simulate this by creating a `Poll` message,
-that the actor will send to itself. The type of the message
-is not important; in fact we may match against the message directly:
-
-```java
-Object Poll = new Object();
-// then inside the actor body:
-if (msg == Poll) {
-    // read from the socket
-}
-```
-
-In order to simulate the `sleep`, we will use a scheduled executor
-and use that to schedule the `Poll` message to `self`, as such:
-
-```java
-scheduler.schedule(() -> self.tell(Poll), 1, SECONDS);
+var myActor = sys.actorOf(self -> IOBehavior.of(msg -> /* IO-throwing body */))
 ```
 
 
@@ -180,11 +216,10 @@ The simple architecture of our chat server is to have two root actors in our sys
 
 1. The `serverSocketHandler` waits for incoming connection on a Java `ServerSocket`. When there is a new incoming connection, it sends a `CreateClient` message to the `clientManager`.
 
-2. The Client Manager creates and keeps track of all the active clients. When a client sends a message, it forwards the message to all the clients.
+2. `clientManager` creates and keeps track of all the active clients. When a client sends a message, it forwards the message to all the clients.
 
 
-
-accepts two types of messages:
+`clientManager` accepts two types of messages:
 - `CreateClient` 
 - `Message` 
 
@@ -205,10 +240,46 @@ to forward that message to all of them
 
 ![img](/assets/actor-2/message.gif)
 
-Our chat server will receive incoming connections
+### Boilerplate
 
-![img](/assets/actor-2/server-poll.gif)
+Let's create the envelope for our actors. Remember from the [first post][minjavactors]: the reason I am using interfaces is that most members will be `public` `static` by default. 
 
+```java
+public interface ChatServer {
+    Actor.System sys = new Actor.System(Executors.newCachedThreadPool());
+    Actor.System io = new Actor.System(Executors.newCachedThreadPool());
+
+}
+```
+
+This interface will contain our `main` method and all of the `Behavior` methods. We will be also use it to define the messages, and a few utilities.
+
+Some methods in the `Socket` API will throw `IOException`s, which is a checked exception. Checked exception do not play nicely with lambdas, unless you define a method signature that accepts them. So let us define a couple of utilities in a shared library.
+
+```java
+interface IOBehavior { Actor.Effect apply(Object msg) throws IOException; }
+```
+
+It is basically *identical* to `Function<Object, Effect>` except it declares a `throws IOException` clause. We can now create a companion static method to transform an `IOBehavior` to a `Behavior` that throws an `UncheckedIOException`: we will use this in our actors.
+
+```java
+interface IOBehavior { Actor.Effect apply(Object msg) throws IOException; }
+static Actor.Behavior IO(IOBehavior behavior) {
+    return msg -> {
+        try { return behavior.apply(msg); } 
+        catch (IOException e) { throw new UncheckedIOException(e); }};
+}
+
+```
+
+This way we can create an actor that catches `IOException` and rethrows `UncheckedIOException`s as such
+
+```java
+var myActor = sys.actorOf(self -> IO(msg -> /* IO-throwing body */))
+```
+
+
+### `clientManager`
 
 The "core" of the server is really an actor I have called the `clientManager`.
 
@@ -222,7 +293,7 @@ The `clientManager` keeps track of all the connected clients.
 ```java
 static Behavior clientManager(Address self) {
     var clients = new ArrayList<Address>();
-    return IOBehavior.of(msg -> {
+    return IO(msg -> {
         switch (msg) {
             // create a connection handler and a message handler for that client
             case CreateClient n -> {
@@ -256,29 +327,90 @@ static Behavior clientManager(Address self) {
 
 This is more or less the most complicated actor you'll see.
 
+### `clientOutput`
 
-The `clientOutput` actor is extremely simple: it will just receive a message, and serialize
-it to the given `PrintWriter` instance.
+The `clientOutput` actor is extremely simple: it will just receive a message, and write it to the given `PrintWriter` instance.
 
-Because we are serializing to JSON, we can assume newlines are not part of the serialized message,
-so they are safe both to write and to read.
+Because we are serializing to JSON, we can assume newlines are not part of the serialized message, so they are safe both to write and to read.
 
 ```java
 static Behavior clientOutput(PrintWriter writer) {
-    return IOBehavior.of(msg -> {
-        if (msg instanceof Message m) writer.println(Mapper.writeValueAsString(m));
+    return IO(msg -> {
+        if (msg instanceof Message m) writer.println(m.payload());
         return Stay;
     });
 }
 ```
+
+
+### Polling
+
+The blocking API will require polling. In the Java code we saw at the beginning we  implemented `while` loops of the form:
+
+```java
+while (true) {
+    // blocking code here
+}
+```
+
+![img](/assets/actor-2/server-poll.gif)
+
+
+We will simulate this by creating a `Poll` message,
+that the actor will send to itself. The type of the message
+is not important; in fact we may match against the message directly:
+
+```java
+Behavior polling = msg -> {
+    if (msg == Poll) {
+        // blocking code here
+    }
+};
+```
+
+Now a word of warning should be added; you should usually avoid spinning
+through a `while (true)` as you will keep the CPU busy 100% of the time.
+
+It is usually better to add a tiny `sleep`, to release the CPU.
+
+```java
+while (true) {
+    // blocking code here
+    Thread.sleep(someSmallAmount);
+}
+```
+
+
+In order to simulate the `sleep`, we may schedule a `Poll` message through a Java `ScheduledExecutor`.
+
+```java
+scheduler.schedule(() -> self.tell(Poll), 1, SECONDS);
+```
+
+Add the `Poll` message and the scheduler at the top of the `ChatServer` interface:
+
+```java
+public interface ChatServer {
+    Actor.System sys = new Actor.System(Executors.newCachedThreadPool());
+    Actor.System io = new Actor.System(Executors.newCachedThreadPool());
+    ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4);
+
+    Object Poll = new Object();
+
+```
+
+### `clientInput` 
 
 The input handler `clientInput` receives `Poll` messages at a given delay,
 and reschedules the same message after processing input. It will discard any message that is not a `Poll`.
 
 When it receives a `Poll` it checks the given `BufferedReader` if there is input,  and then read a line.
 
-Each line contains a serialized message: thus, we deserialize that message into a `Message` instance,
-and then broadcast it to the `clientManager`.
+Each line contains a serialized payload: we don't need to inspect the contents, so  we just wrap it inside a `ServerMessage` instance, and then broadcast it to the `clientManager`.
+
+Of course, in a proper server you should at least validate the payload so that it does not contain invalid or malicious values, but for simplicity we will not do it here.
+
+
 
 ```java
 static Behavior clientInput(Address self, Address clientManager, BufferedReader in) {
@@ -288,15 +420,14 @@ static Behavior clientInput(Address self, Address clientManager, BufferedReader 
     return IOBehavior.of(msg -> {
         // ignore non-Poll messages
         if (msg != Poll) return Stay;
-        if (in.ready()) {
-            var input = in.readLine();
-            // log message to stdout
-            out.println(input);
-            // deserialize from JSON
-            Message m = Mapper.readValue(input, Message.class);
-            // broadcast to all other clients
-            clientManager.tell(m);
-        }
+            if (in.ready()) {
+                var m = in.readLine();
+                // log message to stdout
+                out.println(m);
+                // broadcast to all other clients
+                clientManager.tell(new ServerMessage(m));
+            }
+
 
         // "stay" in the same state, ensuring that the initializer is re-evaluated
         return Become(clientInput(self, clientManager, in));
@@ -305,15 +436,17 @@ static Behavior clientInput(Address self, Address clientManager, BufferedReader 
 ```
 
 The input handler `clientInput` gets initialized with the `clientManager` address, 
-and a `BufferedReader` that wraps the socket's input stream. This is just a convenient
-way to read line-wise.
+and a `BufferedReader` that wraps the socket's input stream. This is just a convenient way to read line-wise.
 
 The first line of the `clientInput` method schedules to send `Poll` to `self`. 
 This is to simulate an infinite loop; however, by scheduling a message instead
 of actually writing a loop, we release each time the underlying thread for re-scheduling.
 
-Please notice that we `schedule` the message instead of just sending with `self.tell(Poll)`,
-because otherwise we would easily spike the CPU.
+The last line is a `Become` to the same behavior. Because the behavior initially schedules the `Poll`, this means that every time the actor body gets executed, it will re-schedule the `Poll`, effectively making it loop indefinitely.
+
+You may have noticed that we do not use `scheduleAtFixedRate()` or `scheduleWithFixedDelay()`; instead, we execute the body *and then* reschedule the message. The reason is that an actor may receive other messages in the meantime, and we don't want to clog its mailbox with `Poll` messages while the body is still executing.
+
+### `serverSocketHandler`
 
 The last actor that we need will `Poll` the server socket for incoming connection, and
 `tell` the client manager to spawn a new pair of `client` actors (our friends `clientInput` and `clientOutput`).
@@ -321,7 +454,7 @@ The last actor that we need will `Poll` the server socket for incoming connectio
 ```java
 static Behavior serverSocketHandler(Address self, Address clientManager, ServerSocket serverSocket) {
     scheduler.schedule(() -> self.tell(Poll), 1000, MILLISECONDS);
-    return IOBehavior.of(msg -> {
+    return IO(msg -> {
         if (msg != Poll) return Stay;
         var socket = serverSocket.accept();
         clientManager.tell(new CreateClient(socket));
@@ -354,20 +487,38 @@ Neat, huh?
 
 ## Chat Client
 
-Of course, I lied. We are not done yet. We still need to write the client app.
+Of course, we are not done yet. We still need to write the client app.
 Luckily that is incredibly short.
 
 We only need 3 actors here. In fact, there is even little reason to use an actor system at all: to be fair,
 the client could be almost single-threaded.
 
-Yet, the API is so neat, that, you'd wonder why you should not. 
+Yet, the actor-based API is so neat, that, you'd wonder why you should not. 
+
+Let us create the envelope with a few utilities: 
+
+```java
+public interface Client {
+    interface IOConsumer<T> { void accept(T t) throws IOException; }
+    interface IOBehavior { Actor.Effect apply(Object msg) throws IOException; }
+    static Actor.Behavior IO(IOBehavior behavior) {
+        return msg -> {
+            try { return behavior.apply(msg); }
+            catch (IOException e) { throw new UncheckedIOException(e); }
+        };
+    }
+}
+```
+
+For simplicity I am duplicating `IOBehavior` and `IO` here. You may also write your own shared class,
+but this will keep the script stand-alone for running through JBang later!
 
 ### Message Writer
 
 We need an actor to receive messages and write them to the server socket.
 
 ```java
-var serverOut = sys.actorOf(self -> ChatBehavior.IOBehavior.of(msg -> {
+var serverOut = sys.actorOf(self -> IO(msg -> {
     if (msg instanceof Message m)
         socketOutput.println(ChatBehavior.Mapper.writeValueAsString(m));
     return Stay;
@@ -385,7 +536,7 @@ static Actor.Behavior lineReader(Actor.Address self, BufferedReader in) {
     // schedule a message to self
     scheduler.schedule(() -> self.tell(Poll), 100, MILLISECONDS);
 
-    return ChatBehavior.IOBehavior.of(msg -> {
+    return IO(msg -> {
         // ignore non-Poll messages
         if (msg != Poll) return Stay;
         if (in.ready()) {
@@ -418,14 +569,7 @@ static Actor.Behavior lineReader(Actor.Address self, BufferedReader in, IOConsum
 where the complete signature of `IOConsumer` is just:
 
 ```java
-interface IOConsumer<T> {
-    void accept(T t) throws IOException;
-    static <T> Consumer<T> of(IOConsumer<T> f) {
-        return msg -> {
-            try { f.accept(msg); }
-            catch (IOException e) { throw new UncheckedIOException(e); }};
-    }
-}
+interface IOConsumer<T> { void accept(T t) throws IOException; }
 ```
 
 Thereby allowing to define `userIn` and `serverSocketReader` as such:
@@ -446,5 +590,6 @@ var serverSocketReader = sys.actorOf(self -> lineReader(self,
 ```
 
 [minjavactors]: blah
+[jbang]: https://jbang.dev
 [socket]: socket
 [loom]: loom
