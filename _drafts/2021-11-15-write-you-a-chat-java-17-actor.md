@@ -480,15 +480,20 @@ TODO: ADD LINK TO JBANG
 Of course, we are not done yet. We still need to write the client app.
 Luckily that is incredibly short.
 
-We only need 3 simple actors here. In fact, there is even little reason to use an actor system at all: to be fair, we may dedicate one thread per actor.
+We only need 3 simple actors here. 
 
-Yet, the actor-based API is so neat, that, you'd wonder why you should not. 
+you will need:
+
+- `serverOut`: an actor that *writes* to the server socket
+- `userIn`: an actor that *reads* the messages from standard input
+- `serverSocketReader`: an actor that *reads* the messages that server re-broadcasts from other clients
+
+To be fair, you may just dedicate one thread per actor and call it a day. Yet, the actor-based API is so neat, that, you'd wonder why you should not. 
 
 Let us create the envelope with a few utilities: 
 
 ```java
 public interface Client {
-    interface IOConsumer<T> { void accept(T t) throws IOException; }
     interface IOBehavior { Actor.Effect apply(Object msg) throws IOException; }
     static Actor.Behavior IO(IOBehavior behavior) {
         return msg -> {
@@ -502,26 +507,75 @@ public interface Client {
 For simplicity I am duplicating `IOBehavior` and `IO` here. You may also write your own shared class,
 but this will keep the script stand-alone for running through JBang later!
 
-### Message Writer
+There is only 3 actors in this actor system. So if our thread pool is at least >=3 we don't really need to separate the I/O thread from the message thread.
+
+```java
+    Actor.System sys = new Actor.System(Executors.newCachedThreadPool());
+```
+However, it is still wise to `Poll` using a scheduler:
+
+```java
+    ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4);
+```
+
+There is only two types of messages, the `Poll` and the client `Message`
+
+```java
+static Object Poll = new Object();
+record Message(String user, String text) {}
+```
+
+In this case, the `Message` contains the nickname of the user who wrote the message, and the actual text of the message.
+
+Let us now get rid of some boilerplate before we write the actual actor code.
+
+```java
+String host = "localhost";
+int portNumber = 4444;
+
+static void main(String[] args) throws IOException {
+    var userName = args[0];
+
+    // we will use this to serialize `Message` to JSON
+    var mapper = new ObjectMapper();
+    
+    // initialize the socket and the readers and writers
+    var socket = new Socket(host, portNumber);
+    var userInput = new BufferedReader(new InputStreamReader(in));
+    var socketInput = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+    var socketOutput = new PrintWriter(socket.getOutputStream(), true);
+
+    // print some info to screen
+    out.printf("Login........%s\n", userName);
+    out.printf("Local Port...%d\n", socket.getLocalPort());
+    out.printf("Server.......%s\n", socket.getRemoteSocketAddress());
+
+    // ... actors go here ...
+}
+```
+
+The actors will be pretty simple.
 
 We need an actor to receive messages and write them to the server socket.
 
 ```java
 var serverOut = sys.actorOf(self -> IO(msg -> {
     if (msg instanceof Message m)
-        socketOutput.println(ChatBehavior.Mapper.writeValueAsString(m));
+        socketOutput.println(mapper.writeValueAsString(m));
     return Stay;
 }));
 ```
 
-Then we need two actors; both of them will `Poll` for input, and read line-by-line;
+`userIn` and `serverSocketReader` are very similar: 
+
+- both of them will `Poll` for input, and read line-by-line;
 - in one case, we will read the input from the server socket and print it to screen
 - in the other, we will read the input from the user and publish it to the server socket
 
-In both cases the main meat is this method:
+We expect both actors to respect the following blueprint:
 
 ```java
-static Actor.Behavior lineReader(Actor.Address self, BufferedReader in) {
+static Behavior lineReader(Address self, BufferedReader in) {
     // schedule a message to self
     scheduler.schedule(() -> self.tell(Poll), 100, MILLISECONDS);
 
@@ -539,26 +593,27 @@ static Actor.Behavior lineReader(Actor.Address self, BufferedReader in) {
 }
 ```
 
-
-We can rewrite the following line as such:
+We can rewrite `/** handle input here **/` as such:
 
 ```java
         if (in.ready()) {
             var input = in.readLine();
-            lineConsumer.accept(input);
+            lineReader.read(input);
         }
 ```
 
 and then declare it in the method signature as such:
 
 ```java
-static Actor.Behavior lineReader(Actor.Address self, BufferedReader in, IOConsumer<String> lineConsumer) {
+static Behavior lineReader(Address self, BufferedReader in, IOLineReader lineReader) {
 ```
 
-where the complete signature of `IOConsumer` is just:
+Add the definition of `IOLineReader` at the top:
 
 ```java
-interface IOConsumer<T> { void accept(T t) throws IOException; }
+public interface Client {
+    interface IOLineReader { void read(String line) throws IOException; }
+    ...
 ```
 
 Thereby allowing to define `userIn` and `serverSocketReader` as such:
@@ -577,6 +632,15 @@ var serverSocketReader = sys.actorOf(self -> lineReader(self,
             out.printf("%s > %s\n", message.user(), message.text());
         }));
 ```
+
+And now you are *really* done!
+
+You can start a client with....
+
+
+## Conclusions
+
+.....
 
 [minjavactors]: blah
 [jbang]: https://jbang.dev
