@@ -15,13 +15,14 @@ plainwhite:
     github: evacchi
     linkedIn: in/edoardovacchi 
 
+  navigation:
+    - title: About Me
+      url: "/about/"
+
+
+include: ['_pages']
+
 show_excerpts: false
 plugins:
 - jekyll-seo-tag
-
-#  navigation:
-#    - title: My Work
-#      url: "/my-work"
-#    - title: Resume
-#      url: "/resume"
 
