@@ -11,10 +11,6 @@ Welcome back to ["Learn You An Actor (System) For Great Good!"][minjavactors]. I
 
 As promised, in this second part I am showing how to write a tiny chat client/server [using the runtime we wrote last time][minjavactors], that then we will run using [JBang!][jbang] Next time, we will learn how to create a **typed** version of the same actor runtime and revisit the examples!
 
-For this chat application I have decided to use [the JDK's blocking Socket API][socket]. Now, you should always avoid calling a blocking API from the body of an actor, because you will block the entire underlying thread. However, we will do some damage-control by creating a special actor system for I/O, on its own thread pool. 
-
-On a related note, on a [Loom-enabled JDK][loom], where threads are virtual, light-weight but still pre-emptible, even blocking I/O operations won't result in blocking a "real" OS thread. But until that lands in a stable JDK release, we will have to make do.
-
 Because this post is quite long, here is a table of contents.
 
 - [Overview](#overview)
@@ -44,7 +40,11 @@ For instance, in this picture `Duffman` is sending the message `"Are you ready?"
 
 ### A Naive Java Implementation
 
-In a Java program, the `ServerSocket` API provides all you need to `accept()` incoming connections from clients. 
+For this chat application I have decided to use [the JDK's blocking Socket API][socket]. Now, you should always avoid calling a blocking API from the body of an actor, because you will block the entire underlying thread. However, we will do some damage-control by creating a special actor system for I/O, on its own thread pool. 
+
+On a related note, on a [Loom-enabled JDK][loom], where threads are virtual, light-weight but still pre-emptible, even blocking I/O operations won't result in blocking a "real" OS thread. But until that lands in a stable JDK release, we will have to make do.
+
+The `ServerSocket` API provides all you need to `accept()` incoming connections from clients. 
 
 Here is a naive snippet that is omitting all the details of spawning, handling threads and dealing with concurrency issues:
 
@@ -184,14 +184,22 @@ Some methods in the `ServerSocket` and `Socket` APIs are blocking; some of them 
 - Blocking APIs do not play nicely with an actor runtime because they block the underlying thread.
 - Checked exception do not play nicely with lambdas, unless you define a method signature that accepts them. 
 
-So, we will create **two** actor systems, and dedicate one to I/O and blocking calls; we will also define a utility interface to define `Behavior`s that throw `IOException`s.
-
+So, we will create **two** actor systems, and dedicate one to I/O and blocking calls:
 
 ```java
 public interface ChatServer {
     Actor.System sys = new Actor.System(Executors.newCachedThreadPool());
-    Actor.System io = new Actor.System(Executors.newCachedThreadPool());
-  
+    Actor.System io = new Actor.System(Executors.newFixedThreadPool(2));
+}
+```
+
+Notice that for `io` we are using a `FixedThreadPool`. This prevents the executor from spawning more threads when some of them are blocked. 
+
+Let us also define a functional interface for I/O; because many I/O methods throw `IOException`s we define an `IOBehavior` that throws: 
+
+```java
+public interface ChatServer {
+    ...
     interface IOBehavior { Actor.Effect apply(Object msg) throws IOException; }
     static Actor.Behavior IO(IOBehavior behavior) {
         return msg -> {
@@ -200,7 +208,7 @@ public interface ChatServer {
 }
 ```
 
-`IOBehavior` is basically *identical* to `Function<Object, Effect>` except it declares it `throws IOException`. The `IO` method turns a `IOBehavior` that throws `IOException`s into a plain `Behavior` that catches an `IOException` turning it into an `UncheckedIOException`, allowing us to write:
+`IOBehavior` is basically *identical* to `Function<Object, Effect>` except it declares it `throws IOException`. The `IO` method turns a `IOBehavior` that throws `IOException`s into a plain `Behavior` that catches an `IOException` turning it into an `UncheckedIOException`. This will let us write:
 
 ```java
 var myActor = sys.actorOf(self -> IO(msg -> /* IO-throwing body */))
@@ -516,7 +524,7 @@ are not echoed immediately to screen (as it would usually happen). Instead, we w
 Let's start with the "envelope" with a few utilities: 
 
 ```java
-public interface Client {
+public interface ChatClient {
     interface IOBehavior { Actor.Effect apply(Object msg) throws IOException; }
     static Actor.Behavior IO(IOBehavior behavior) {
         return msg -> {
@@ -667,16 +675,57 @@ var serverSocketReader = sys.actorOf(self -> readLine(self,
 `serverSocketHandler` receives each line from the server, 
 deserializes it, and prints it to standard output.
 
-And now you are *really* done!
+And now you are *really* done: you can now start a client with JBang! Add the following lines at the top of your file:
 
-You can start a client with....///TODO JBang
+```java
+//JAVA 17
+//JAVAC_OPTIONS --enable-preview --release 17
+//JAVA_OPTIONS  --enable-preview
+//DEPS com.fasterxml.jackson.core:jackson-databind:2.13.0
+//DEPS com.github.evacchi:min-java-actors:main-SNAPSHOT
+```
 
+If everything is right, then you can type:
+
+```sh
+j! ChatClient.java your-nickname
+```
+
+If you are lazy, you can run it from this Gist directly (make sure the server is running!): 
+
+```
+j! https://gist.github.com/evacchi/6bbe4bca3df51a29d17d5c10917c91ec your-nickname
+```
+
+The program will start waiting for incoming connections, printing something like:
+
+```sh
+Login........your-nickname
+Local Port...57942
+Server.......localhost/127.0.0.1:4444
+```
+
+Here is a full demo!
+
+<div style="text-align: center">
+<video controls autoplay width="402" height="600">
+  <source src="/assets/actor-2/chat-demo.mp4" type="video/mp4">
+  <a href="/assets/actor-2/chat-demo.mp4">Full demo</a>
+</video>
+</div>
 
 ## Conclusions
 
-.....
+In this post we have learned how to write a simple chat app. As promised in the [previous post][minjavactors], In the final
+part of this series we will revisit the actor runtime and define a **fully-typed** version, which will benefit from exhaustiveness checks!
+
+I am also happy to announce that [I have been selected](https://twitter.com/JavaAdvent/status/1457409222048636940) for the [Java Advent Calendar 2021][javaadvent], so the last part of this series will be first published on the [Java Advent Calendar][javaadvent] website! [Follow them on Twitter](https://twitter.com/JavaAdvent) for updates!
+
+See you there!
+
 
 [minjavactors]: blah
 [jbang]: https://jbang.dev
 [socket]: socket
 [loom]: loom
+[javaadvent]: https://www.javaadvent.com/
