@@ -20,14 +20,15 @@ Because this post is quite long, here is a table of contents.
 - [Overview](#overview)
   - [A Naive Java Implementation](#a-naive-java-implementation)
 - [Chat Server](#chat-server)
-  - [Boilerplate](#boilerplate) 
+  - [Root Actors](#root-actors) 
   - [`clientManager`](#clientmanager)
   - [`clientOutput`](#clientoutput)
   - [Polling](#polling)
   - [`clientInput`](clientinput) 
   - [`serverSocketHandler`](#serversockethandler)
 - [Chat Client](#chat-client)
-  - [Message Writer](#message-writer)
+  - [Client Actors](#client-actors)
+- [Conclusions](#conclusions)
 
 ## Overview
 
@@ -464,7 +465,29 @@ static void main(String... args) throws IOException {
 }
 ```
 
-You can now start your server!
+You can now start your server with JBang! Add the following lines at the top of your file:
+
+```java
+//JAVA 17
+//JAVAC_OPTIONS --enable-preview --release 17
+//JAVA_OPTIONS  --enable-preview
+//REPOS jitpack=https://jitpack.io/
+//DEPS com.github.evacchi:min-java-actors:main-SNAPSHOT
+```
+
+If everything is right, then you can type:
+
+```sh
+j! ChatServer.java
+```
+
+If you are lazy, you can run it from this Gist directly: 
+
+```
+j! https://gist.github.com/evacchi/b6dbd0b848b0940b862246750026460e
+```
+
+The program will start waiting for incoming connections, printing:
 
 ```sh
 Server started at 0.0.0.0/0.0.0.0:4444.
@@ -472,27 +495,23 @@ Server started at 0.0.0.0/0.0.0.0:4444.
 
 Neat, huh?
 
-TODO: ADD LINK TO JBANG
-
 
 ## Chat Client
 
 Of course, we are not done yet. We still need to write the client app.
-Luckily that is incredibly short: we only need 3 simple actors here. 
+Luckily that is incredibly short: we only need 3 actors. To be fair, you may just dedicate one thread per actor and call it a day, but for completeness, let's use the actor system: the result will be quite compact. 
+
+We will define:
 
 - `serverOut`: an actor that *writes* to the server socket
 - `userIn`: an actor that *reads* the messages from standard input
-- `serverSocketReader`: an actor that *reads* the messages that server re-broadcasts from other clients
+- `serverSocketReader`: an actor that *reads* the messages that the server re-broadcasts from/to other clients
 
 
 ![A client connecting to socket, reading messages from standard input, writing to standard output](/assets/actor-2/actor-client.png)
 
 Notice that, for simplicity, the messages that are written locally
 are not echoed immediately to screen (as it would usually happen). Instead, we will always print to screen whatever comes back from the server. Because the server always re-broadcasts *everything* to *everyone*, we will *also* effectively echo whatever the user wrote.
-
-To be fair, you may just dedicate one thread per actor and call it a day, but for completeness, let's use the actor system: the result will be quite compact. 
-
-### Boilerplate
 
 Let's start with the "envelope" with a few utilities: 
 
