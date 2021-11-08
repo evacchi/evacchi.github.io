@@ -478,19 +478,23 @@ TODO: ADD LINK TO JBANG
 ## Chat Client
 
 Of course, we are not done yet. We still need to write the client app.
-Luckily that is incredibly short.
-
-We only need 3 simple actors here. 
-
-you will need:
+Luckily that is incredibly short: we only need 3 simple actors here. 
 
 - `serverOut`: an actor that *writes* to the server socket
 - `userIn`: an actor that *reads* the messages from standard input
 - `serverSocketReader`: an actor that *reads* the messages that server re-broadcasts from other clients
 
-To be fair, you may just dedicate one thread per actor and call it a day. Yet, the actor-based API is so neat, that, you'd wonder why you should not. 
 
-Let us create the envelope with a few utilities: 
+![A client connecting to socket, reading messages from standard input, writing to standard output](/assets/actor-2/actor-client.png)
+
+Notice that, for simplicity, the messages that are written locally
+are not echoed immediately to screen (as it would usually happen). Instead, we will always print to screen whatever comes back from the server. Because the server always re-broadcasts *everything* to *everyone*, we will *also* effectively echo whatever the user wrote.
+
+To be fair, you may just dedicate one thread per actor and call it a day, but for completeness, let's use the actor system: the result will be quite compact. 
+
+### Boilerplate
+
+Let's start with the "envelope" with a few utilities: 
 
 ```java
 public interface Client {
@@ -504,18 +508,17 @@ public interface Client {
 }
 ```
 
-For simplicity I am duplicating `IOBehavior` and `IO` here. You may also write your own shared class,
-but this will keep the script stand-alone for running through JBang later!
+For simplicity I am duplicating `IOBehavior` and `IO` here. You may also write your own shared class, but this will keep the script stand-alone for running through JBang later!
 
-There is only 3 actors in this actor system. So if our thread pool is at least >=3 we don't really need to separate the I/O thread from the message thread.
+There is only 3 actors in this actor system. So if our thread pool size is at least >=3 we don't really need to separate the I/O thread from the message thread.
 
 ```java
-    Actor.System sys = new Actor.System(Executors.newCachedThreadPool());
+Actor.System sys = new Actor.System(Executors.newCachedThreadPool());
 ```
 However, it is still wise to `Poll` using a scheduler:
 
 ```java
-    ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4);
+ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4);
 ```
 
 There is only two types of messages, the `Poll` and the client `Message`
@@ -527,19 +530,20 @@ record Message(String user, String text) {}
 
 In this case, the `Message` contains the nickname of the user who wrote the message, and the actual text of the message.
 
-Let us now get rid of some boilerplate before we write the actual actor code.
+Let us now write the `main` routine with the initialization logic.
 
 ```java
 String host = "localhost";
 int portNumber = 4444;
 
 static void main(String[] args) throws IOException {
+    // read the nickname from command-line arguments
     var userName = args[0];
 
-    // we will use this to serialize `Message` to JSON
+    // we will use this to (de)serialize `Message` to JSON
     var mapper = new ObjectMapper();
     
-    // initialize the socket and the readers and writers
+    // initialize the socket, the readers and the writers
     var socket = new Socket(host, portNumber);
     var userInput = new BufferedReader(new InputStreamReader(in));
     var socketInput = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -554,9 +558,11 @@ static void main(String[] args) throws IOException {
 }
 ```
 
-The actors will be pretty simple.
+The only thing missing are now the 3 actors!
 
-We need an actor to receive messages and write them to the server socket.
+### Client Actors
+
+As we saw at the beginning, `serverOut` is the simplest actor of all, because it just receives messages and serializes them to the server socket.
 
 ```java
 var serverOut = sys.actorOf(self -> IO(msg -> {
@@ -569,13 +575,13 @@ var serverOut = sys.actorOf(self -> IO(msg -> {
 `userIn` and `serverSocketReader` are very similar: 
 
 - both of them will `Poll` for input, and read line-by-line;
-- in one case, we will read the input from the server socket and print it to screen
-- in the other, we will read the input from the user and publish it to the server socket
+- `userIn` reads the input from the user and publish it to the server socket
+- `serverSocketReader` reads the input from the server socket and print it to screen
 
 We expect both actors to respect the following blueprint:
 
 ```java
-static Behavior lineReader(Address self, BufferedReader in) {
+static Behavior readLine(Address self, BufferedReader in) {
     // schedule a message to self
     scheduler.schedule(() -> self.tell(Poll), 100, MILLISECONDS);
 
@@ -584,7 +590,7 @@ static Behavior lineReader(Address self, BufferedReader in) {
         if (msg != Poll) return Stay;
         if (in.ready()) {
             var input = in.readLine();
-            /** handle input here **/
+            handleInput(input); // undefined
         }
 
         // "stay" in the same state, ensuring that the initializer is re-evaluated
@@ -593,22 +599,10 @@ static Behavior lineReader(Address self, BufferedReader in) {
 }
 ```
 
-We can rewrite `/** handle input here **/` as such:
+`handleInput(input)` is still undefined, because each actor should
+customize it. We can keep the code tidy by defining a lambda.
 
-```java
-        if (in.ready()) {
-            var input = in.readLine();
-            lineReader.read(input);
-        }
-```
-
-and then declare it in the method signature as such:
-
-```java
-static Behavior lineReader(Address self, BufferedReader in, IOLineReader lineReader) {
-```
-
-Add the definition of `IOLineReader` at the top:
+Add the following definition of `IOLineReader` at the top:
 
 ```java
 public interface Client {
@@ -616,26 +610,47 @@ public interface Client {
     ...
 ```
 
+
+and then declare it in the method signature as such:
+
+```java
+static Behavior readLine(Address self, BufferedReader in, IOLineReader lineReader) {
+```
+
+Then we can use it as:
+
+```java
+        if (in.ready()) {
+            var input = in.readLine();
+            lineReader.read(input); // undefined
+        }
+```
+
 Thereby allowing to define `userIn` and `serverSocketReader` as such:
 
 ```java
-var userIn = sys.actorOf(self -> lineReader(self,
+var userIn = sys.actorOf(self -> readLine(self,
         userInput,
         line -> serverOut.tell(new Message(userName, line))));
 ```
 
+`userIn` reads a line then sends it to `serverOut`
+
 ```java
-var serverSocketReader = sys.actorOf(self -> lineReader(self,
+var serverSocketReader = sys.actorOf(self -> readLine(self,
         socketInput,
         line -> {
-            Message message = ChatBehavior.Mapper.readValue(line, Message.class);
+            Message message = mapper.readValue(line, Message.class);
             out.printf("%s > %s\n", message.user(), message.text());
         }));
 ```
 
+`serverSocketHandler` receives each line from the server, 
+deserializes it, and prints it to standard output.
+
 And now you are *really* done!
 
-You can start a client with....
+You can start a client with....///TODO JBang
 
 
 ## Conclusions
