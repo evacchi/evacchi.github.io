@@ -716,16 +716,20 @@ Here is a full demo!
 
 ## Conclusions
 
-In this post we have learned how to write a simple chat app. As promised in the [previous post][minjavactors], In the final
-part of this series we will revisit the actor runtime and define a **fully-typed** version, which will benefit from exhaustiveness checks!
+In this post we have learned how to write a simple chat app. 
+
+For simplicity, we used the [blocking Socket API][socket]. As an exercise, you can try to develop your own version using [Java NIO asynchronous APIs][asyncsocket].
+
+As promised in the [previous post][minjavactors], in the final part of this series we will revisit the actor runtime and define a **fully-typed** version, which will benefit from exhaustiveness checks!
 
 I am also happy to announce that [I have been selected](https://twitter.com/JavaAdvent/status/1457409222048636940) for the [Java Advent Calendar 2021][javaadvent], so the last part of this series will be first published on the [Java Advent Calendar][javaadvent] website! [Follow them on Twitter](https://twitter.com/JavaAdvent) for updates!
 
 See you there!
 
 
-[minjavactors]: blah
+[minjavactors]: https://evacchi.github.io/java/records/jbang/2021/10/12/learn-you-an-actor-system-java-17-switch-expressions.html
 [jbang]: https://jbang.dev
-[socket]: socket
-[loom]: loom
+[socket]: https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/net/ServerSocket.html
+[asyncsocket]: https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/nio/channels/AsynchronousServerSocketChannel.html
+[loom]: https://inside.java/tag/loom
 [javaadvent]: https://www.javaadvent.com/
