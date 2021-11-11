@@ -40,7 +40,7 @@ For instance, in this picture `Duffman` is sending the message `"Are you ready?"
 
 ### A Naive Java Implementation
 
-For this chat application ([after my friend Andrea][andrea] bugged me to no end), I have decided to use [the JDK's asynchronous Socket API][socket]. The `AsynchronousServerSocketChannel` API provides all you need to `accept()` incoming connections from clients. For instance: 
+For this chat application ([after my friend Andrea][andrea] bugged me to no end), I have decided to use [the JDK's asynchronous Socket API][asyncsocket]. The `AsynchronousServerSocketChannel` API provides all you need to `accept()` incoming connections from clients. For instance: 
 
 ```java
 var socketChannel = AsynchronousServerSocketChannel.open();
@@ -731,9 +731,7 @@ Here is a full demo!
 
 ## Conclusions
 
-In this post we have learned how to write a simple chat app. 
-
-For simplicity, we used the [blocking Socket API][socket]. As an exercise, you can try to develop your own version using [Java NIO asynchronous APIs][asyncsocket].
+In this post we have learned how to write a simple chat app, and we used the [asynchronous Socket API][asyncsocket]. 
 
 As promised in the [previous post][minjavactors], in the final part of this series we will revisit the actor runtime and define a **fully-typed** version, which will benefit from exhaustiveness checks!
 
