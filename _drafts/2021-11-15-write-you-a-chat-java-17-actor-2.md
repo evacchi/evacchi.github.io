@@ -38,71 +38,9 @@ The chat server accepts incoming connections, receives messages and it propagate
 
 For instance, in this picture `Duffman` is sending the message `"Are you ready?"` to the server, and all of `Carl`, `Lenny` and `Barney` receive it ([to great sadness for Barney, who's the designated driver](https://www.youtube.com/watch?v=eEt-n0ZsYx8)).
 
-### A Naive Java Implementation
-
-For this chat application ([after my friend Andrea][andrea] bugged me to no end), I have decided to use [the JDK's asynchronous Socket API][asyncsocket]. The `AsynchronousServerSocketChannel` API provides all you need to `accept()` incoming connections from clients. For instance: 
-
-```java
-var socketChannel = AsynchronousServerSocketChannel.open();
-socketChannel.setOption(StandardSocketOptions.SO_REUSEADDR, true);
-socketChannel.bind(new InetSocketAddress(HOST, PORT_NUMBER));
-
-socketChannel.accept(null, new CompletionHandler<>() {
-    public void completed(AsynchronousSocketChannel result, Void attachment) { /* handle result/attachment */ }
-    public void failed(Throwable exc, Void attachment) { /* handle exception/attachment */ }
-});
-```
-
-The API being asynchronous, it works through *callbacks*. Additionally, being the API from Java 1.7, it uses *callbacks* or the blocking `java.util.concurrent.Future` instead of lambdas or `j.u.c.CompletableFuture`s.
-
-Each call to `accept()` on the `AsynchronousServerSocketChannel` results (if successful) in returning an `AsynchronousSocketChannel`, which represents a client connection. 
-
-So, roughly, this how a chat server and client should work:
-
-The `AsynchronousServerSocketChannel` waits for connections by `accept()`ing them:
-- every time the callback is invoked a new incoming connection (an `AsynchronousSocketChannel`) is returned.
-- every `AsynchronousSocketChannel` represents a client connection
-
-For each `AsynchronousSocketChannel` has been established, the `Server`:
-
-- reads input from each client connection with `AsynchronousSocketChannel#read()`
-- it broadcasts every input to the output of all client connections `AsynchronousSocketChannel#write()`
-
-Both `read()` and `write()` sport the same callback-based interface:
-
-```java
-var buf = ByteBuffer.wrap(msgBytes);
-channel.write(buf, null, new CompletionHandler<>() {
-    public void completed(Integer bytesWritten, Void ignored) { /* handle successful case */ }
-    public void failed(Throwable exc, Void ignored) { /* handle exception */ }
-});
-
-var buf = ByteBuffer.allocate(BUFFER_SIZE);
-channel.read(buf, buf, new CompletionHandler<>() {
-    public void completed(Integer bytesWritten, ByteBuffer bb) { /* handle bytesWritten/buffer */ }
-    public void failed(Throwable exc, ByteBuffer bb) { /* handle exception/buffer */ }
-});
-```
-
-Both `read()` and `write()` use a `ByteBuffer` to represent an array of bytes. 
-In particular, the `read()` method reads *at most* `BUFFER_SIZE` bytes, but it may return earlier.
-
-
-The `Client` connects to the server by *creating* an `AsynchronousSocketChannel`:
-
-
-```java
-channel.connect(new InetSocketAddress(HOST, PORT_NUMBER), attachment, new CompletionHandler<>() {
-    public void completed(Void ignored, Object attachment) { /* handle attachment */ }
-    public void failed(Throwable exc, Object attachment) { /* handle exception/attachment */ }
-})
-```
-
-- it `read()`s from the connection all the incoming messages
-- it `write()`s each incoming message to the standard output (so the user can see it)
-- it reads user messages from the standard input
 
 ### Protocol
+
 We will use `Jackson` for serialization each message into JSON. Because JSON does not allow unescaped newlines,
 we will use  `'\n'` as a message separator in the input/output stream of the socket.
 
@@ -115,111 +53,11 @@ A server, is comparatively simple: for each client, it will tokenize its input s
 and re-broadcast the token to all connected clients; in a real-world implementation the input should be at least validated,
 but we will skip it here for simplicity.
 
-## Managing Connections
-
-Let's get our hands dirty.
-
-First of all, let's create the "envelope" for our actors. In the [first post][minjavactors]: I chose to use an interface
-as a code container. The reason is that most members will be `public` `static` by default. 
-
-```java
-interface Channels {
-
-}
-```
-
-You can place here these constants, they will be useful in a bit:
-
-
-```java
-interface Channels {
-    String HOST = "localhost";
-    int PORT_NUMBER = 4444;
-}
-```
-
-
-Now, order to keep our actors tidy, we can define a couple of handy private utility methods 
-to convert `CompletionHandler`s into `CompletableFuture`s:
-
-```java
-interface Channels {
-    private static <A, B> CompletionHandler<A, B> handleAttachment(CompletableFuture<B> f) {
-        return new CompletionHandler<>() {
-            public void completed(A result, B attachment) { f.complete(attachment); }
-            public void failed(Throwable exc, B attachment) { f.completeExceptionally(exc); }
-        };
-    }
-    private static <A, B> CompletionHandler<A, B> handleResult(CompletableFuture<A> f) {
-        return new CompletionHandler<>() {
-            public void completed(A result, B attachment) { f.complete(result); }
-            public void failed(Throwable exc, B attachment) { f.completeExceptionally(exc); }
-        };
-    }
-}
-```
-
-You may use these methods directly, but instead, I suggest we create two handy wrappers for `AsynchronousServerSocketChannel` and 
-`AsynchronousSocketChannel`. Nest under `Channels` this `ServerSocket` wrapper for `AsynchronousServerSocketChannel`:
-
-```java
-class ServerSocket {
-    AsynchronousServerSocketChannel socketChannel;
-    private ServerSocket(AsynchronousServerSocketChannel socketChannel) { this.socketChannel = socketChannel; }
-
-    static ServerSocket open() throws IOException {
-        var socketChannel = AsynchronousServerSocketChannel.open();
-        socketChannel.setOption(StandardSocketOptions.SO_REUSEADDR, true);
-        socketChannel.bind(new InetSocketAddress(HOST, PORT_NUMBER));
-        out.printf("Server started at %s.\n", socketChannel.getLocalAddress());
-        return new ServerSocket(socketChannel);
-    }
-
-    CompletableFuture<Socket> accept() {
-        var f = new CompletableFuture<AsynchronousSocketChannel>();
-        socketChannel.accept(null, handleResult(f));
-        return f.thenApply(Socket::new);
-    }
-}
-```
-
-and `Socket`, wrapping `AsynchronousSocketChannel`:
-
-```java
-class Socket {
-    AsynchronousSocketChannel channel;
-    Socket(AsynchronousSocketChannel channel) { this.channel = channel; }
-
-    CompletableFuture<Socket> connect() {
-        var f = new CompletableFuture<Socket>();
-        channel.connect(new InetSocketAddress(HOST, PORT_NUMBER), this, handleAttachment(f));
-        return f;
-    }
-
-    /**
-     *  writes a string and concatenates a new line
-     */
-    CompletableFuture<Void> write(String line) {
-        var f = new CompletableFuture<Void>();
-        var buf = ByteBuffer.wrap((line + END_LINE).getBytes(StandardCharsets.UTF_8));
-        channel.write(buf, null, handleAttachment(f));
-        return f;
-    }
-
-    CompletableFuture<String> read() {
-        var f = new CompletableFuture<ByteBuffer>();
-        var buf = ByteBuffer.allocate(2048);
-        channel.read(buf, buf, handleAttachment(f));
-        return f.thenApply(bb -> new String(bb.array()));
-    }
-}
-```
-
-We are now ready to start.
 
 ## Chat Server
 
-Let's create another "envelope" for our actors. 
+First of all, let's create the "envelope" for our actors. In the [first post][minjavactors]: I chose to use an interface
+as a code container. The reason is that most members will be `public` `static` by default. 
 
 ```java
 public interface ChatServer {
@@ -728,6 +566,178 @@ Here is a full demo!
   <a href="/assets/actor-2/chat-demo.mp4">Full demo</a>
 </video>
 </div>
+
+## Appendix: A NIO Wrapper
+
+
+### A Naive Java Implementation
+
+For this chat application ([after my friend Andrea][andrea] bugged me to no end), I have decided to use [the JDK's asynchronous Socket API][asyncsocket]. The `AsynchronousServerSocketChannel` API provides all you need to `accept()` incoming connections from clients. For instance: 
+
+```java
+var socketChannel = AsynchronousServerSocketChannel.open();
+socketChannel.setOption(StandardSocketOptions.SO_REUSEADDR, true);
+socketChannel.bind(new InetSocketAddress(HOST, PORT_NUMBER));
+
+socketChannel.accept(null, new CompletionHandler<>() {
+    public void completed(AsynchronousSocketChannel result, Void attachment) { /* handle result/attachment */ }
+    public void failed(Throwable exc, Void attachment) { /* handle exception/attachment */ }
+});
+```
+
+The API being asynchronous, it works through *callbacks*. Additionally, being the API from Java 1.7, it uses *callbacks* or the blocking `java.util.concurrent.Future` instead of lambdas or `j.u.c.CompletableFuture`s.
+
+Each call to `accept()` on the `AsynchronousServerSocketChannel` results (if successful) in returning an `AsynchronousSocketChannel`, which represents a client connection. 
+
+So, roughly, this how a chat server and client should work:
+
+The `AsynchronousServerSocketChannel` waits for connections by `accept()`ing them:
+- every time the callback is invoked a new incoming connection (an `AsynchronousSocketChannel`) is returned.
+- every `AsynchronousSocketChannel` represents a client connection
+
+For each `AsynchronousSocketChannel` has been established, the `Server`:
+
+- reads input from each client connection with `AsynchronousSocketChannel#read()`
+- it broadcasts every input to the output of all client connections `AsynchronousSocketChannel#write()`
+
+Both `read()` and `write()` sport the same callback-based interface:
+
+```java
+var buf = ByteBuffer.wrap(msgBytes);
+channel.write(buf, null, new CompletionHandler<>() {
+    public void completed(Integer bytesWritten, Void ignored) { /* handle successful case */ }
+    public void failed(Throwable exc, Void ignored) { /* handle exception */ }
+});
+
+var buf = ByteBuffer.allocate(BUFFER_SIZE);
+channel.read(buf, buf, new CompletionHandler<>() {
+    public void completed(Integer bytesWritten, ByteBuffer bb) { /* handle bytesWritten/buffer */ }
+    public void failed(Throwable exc, ByteBuffer bb) { /* handle exception/buffer */ }
+});
+```
+
+Both `read()` and `write()` use a `ByteBuffer` to represent an array of bytes. 
+In particular, the `read()` method reads *at most* `BUFFER_SIZE` bytes, but it may return earlier.
+
+
+The `Client` connects to the server by *creating* an `AsynchronousSocketChannel`:
+
+
+```java
+channel.connect(new InetSocketAddress(HOST, PORT_NUMBER), attachment, new CompletionHandler<>() {
+    public void completed(Void ignored, Object attachment) { /* handle attachment */ }
+    public void failed(Throwable exc, Object attachment) { /* handle exception/attachment */ }
+})
+```
+
+- it `read()`s from the connection all the incoming messages
+- it `write()`s each incoming message to the standard output (so the user can see it)
+- it reads user messages from the standard input
+
+## Managing Connections
+
+Let's get our hands dirty.
+
+First of all, let's create the "envelope" for our actors. In the [first post][minjavactors]: I chose to use an interface
+as a code container. The reason is that most members will be `public` `static` by default. 
+
+```java
+interface Channels {
+
+}
+```
+
+You can place here these constants, they will be useful in a bit:
+
+
+```java
+interface Channels {
+    String HOST = "localhost";
+    int PORT_NUMBER = 4444;
+}
+```
+
+
+Now, order to keep our actors tidy, we can define a couple of handy private utility methods 
+to convert `CompletionHandler`s into `CompletableFuture`s:
+
+```java
+interface Channels {
+    ...
+    private static <A, B> CompletionHandler<A, B> handleAttachment(CompletableFuture<B> f) {
+        return new CompletionHandler<>() {
+            public void completed(A result, B attachment) { f.complete(attachment); }
+            public void failed(Throwable exc, B attachment) { f.completeExceptionally(exc); }
+        };
+    }
+    private static <A, B> CompletionHandler<A, B> handleResult(CompletableFuture<A> f) {
+        return new CompletionHandler<>() {
+            public void completed(A result, B attachment) { f.complete(result); }
+            public void failed(Throwable exc, B attachment) { f.completeExceptionally(exc); }
+        };
+    }
+}
+```
+
+You may use these methods directly, but instead, I suggest we create two handy wrappers for `AsynchronousServerSocketChannel` and 
+`AsynchronousSocketChannel`. Nest under `Channels` this `ServerSocket` wrapper for `AsynchronousServerSocketChannel`:
+
+```java
+class ServerSocket {
+    AsynchronousServerSocketChannel socketChannel;
+    private ServerSocket(AsynchronousServerSocketChannel socketChannel) { this.socketChannel = socketChannel; }
+
+    static ServerSocket open() throws IOException {
+        var socketChannel = AsynchronousServerSocketChannel.open();
+        socketChannel.setOption(StandardSocketOptions.SO_REUSEADDR, true);
+        socketChannel.bind(new InetSocketAddress(HOST, PORT_NUMBER));
+        out.printf("Server started at %s.\n", socketChannel.getLocalAddress());
+        return new ServerSocket(socketChannel);
+    }
+
+    CompletableFuture<Socket> accept() {
+        var f = new CompletableFuture<AsynchronousSocketChannel>();
+        socketChannel.accept(null, handleResult(f));
+        return f.thenApply(Socket::new);
+    }
+}
+```
+
+and `Socket`, wrapping `AsynchronousSocketChannel`:
+
+```java
+class Socket {
+    AsynchronousSocketChannel channel;
+    Socket(AsynchronousSocketChannel channel) { this.channel = channel; }
+
+    CompletableFuture<Socket> connect() {
+        var f = new CompletableFuture<Socket>();
+        channel.connect(new InetSocketAddress(HOST, PORT_NUMBER), this, handleAttachment(f));
+        return f;
+    }
+
+    /**
+     *  writes a string and concatenates a new line
+     */
+    CompletableFuture<Void> write(String line) {
+        var f = new CompletableFuture<Void>();
+        var buf = ByteBuffer.wrap((line + END_LINE).getBytes(StandardCharsets.UTF_8));
+        channel.write(buf, null, handleAttachment(f));
+        return f;
+    }
+
+    CompletableFuture<String> read() {
+        var f = new CompletableFuture<ByteBuffer>();
+        var buf = ByteBuffer.allocate(2048);
+        channel.read(buf, buf, handleAttachment(f));
+        return f.thenApply(bb -> new String(bb.array()));
+    }
+}
+```
+
+We are now ready to start.
+
+
 
 ## Conclusions
 
