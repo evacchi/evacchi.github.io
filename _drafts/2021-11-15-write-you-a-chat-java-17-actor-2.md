@@ -41,16 +41,32 @@ For instance, in this picture `Duffman` is sending the message `"Are you ready?"
 
 ### Protocol
 
-We will use `Jackson` for serialization each message into JSON. Because JSON does not allow unescaped newlines,
-we will use  `'\n'` as a message separator in the input/output stream of the socket.
+We define a very simple line-based protocol. Every client writes a message on a new line, the server tokenizes the input on the newline and rebroadcasts each message to the clients that are connected. Each message contains the nickname of the user that wrote the message, and the body of the message
 
-That means that in order to *send* a message, a *client* must serialize a message to JSON,
-concatenating a newline character at the end of the payload.
-In order to *receive* a *client* must buffer the bytes in the input stream, until a newline is encountered; 
-when a newline is found, the byte buffer is the serialized message, and it can be deserialized and displayed.
+```
+User A: Message 1 \n
+User B: Message 2 \n
+...
+```
 
-A server, is comparatively simple: for each client, it will tokenize its input stream at newline, 
-and re-broadcast the token to all connected clients; in a real-world implementation the input should be at least validated,
+This cleanly translates into a JSON payload of the form:
+
+```
+{ "User A": "Message 1" } \n
+{ "User B": "Message 2" } \n
+...
+```
+
+In fact, because JSON does not allow unescaped newlines, we can safely use  `'\n'` as a message separator in the input/output stream of the socket.
+
+In order to *send* a message, a *client* serializes a message into JSON, concatenating a newline character at the end of the payload.
+In order to *receive*, a *client* must buffer the bytes in the input stream, until a newline is encountered; 
+when a newline is found, bytes that have been buffered up to that point *are* the serialized message,
+thus it can be deserialized and displayed.
+
+A server, is comparatively simpler: for each client, it will tokenize its input stream at newline, 
+and re-broadcast the token to all connected clients: end of story.
+In a real-world implementation the input should be at least validated,
 but we will skip it here for simplicity.
 
 
