@@ -2,7 +2,7 @@
 title:  'Write You A Chat For Great Good! (with Java 17, actors, and JBang!)'
 subtitle: ''
 categories: [Java, Records, JBang]
-date:   2021-11-03
+date:   2021-11-04
 ---
 
 Hello! 
@@ -104,7 +104,7 @@ It contains only *two classes* `Channels.ServerSocket` and `Channels.Socket`. Th
 
 ## Chat Server
 
-First of all, let's create the "envelope" for our actors. In the [first post][minjavactors]: I chose to use an interface as a code container. The reason is that most members will be `public` `static` by default. We can initialize the actor runtime here.
+First of all, let's create a "namespace" for our actors. In the [first post][minjavactors]: I chose to use an interface as a code container. The reason is that most members will be `public` `static` by default. We can initialize the actor runtime here.
 
 ```java
 public interface ChatServer {
@@ -266,7 +266,7 @@ static Behavior clientSocketHandler(Address self, Address clientManager, Channel
                 var line = partial + incoming.content().substring(0, eol);
                 clientManager.tell(new LineRead(line));
                 // overwrite `buff` with the rest of the buffer (after the newline)
-                var rest = incoming.content().substring(eol + 2);
+                var rest = incoming.content().substring(Math.min(eol + 2, incoming.content().length()));
                 yield Become(clientSocketHandler(self, clientManager, channel, rest));
             } else {
                 // otherwise, concatenate the entire incoming buffer
@@ -414,7 +414,7 @@ We will define:
 
 Notice that, for simplicity, the messages that are written locally are not echoed immediately to screen (as it would usually happen). Instead, we will always print to screen whatever comes back from the server. Because the server always re-broadcasts *everything* to *everyone*, we will *also* effectively echo whatever the user wrote.
 
-Let's start with the "envelope" with a few utilities. We define a functional interface `IOBehavior` because serialization/deserialization methods throw `IOException`s:: 
+Let's start with the "namespace" with a few utilities. We define a functional interface `IOBehavior` because serialization/deserialization methods throw `IOException`s:: 
 
 ```java
 public interface ChatClient {
@@ -734,28 +734,6 @@ channel.connect(new InetSocketAddress(HOST, PORT_NUMBER), attachment, new Comple
 - it reads user messages from the standard input
 
 ## Managing Connections
-
-Let's get our hands dirty.
-
-First of all, let's create the "envelope" for our actors. In the [first post][minjavactors]: I chose to use an interface
-as a code container. The reason is that most members will be `public` `static` by default. 
-
-```java
-interface Channels {
-
-}
-```
-
-You can place here these constants, they will be useful in a bit:
-
-
-```java
-interface Channels {
-    String HOST = "localhost";
-    int PORT_NUMBER = 4444;
-}
-```
-
 
 Now, order to keep our actors tidy, we can define a couple of handy private utility methods 
 to convert `CompletionHandler`s into `CompletableFuture`s:
