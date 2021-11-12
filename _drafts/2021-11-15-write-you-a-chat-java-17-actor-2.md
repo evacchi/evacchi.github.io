@@ -278,26 +278,7 @@ static Behavior clientSocketHandler(Address self, Address clientManager, Channel
 }
 ```
 
-When the recursive call is invoked, then the channel is subscribed again for reading. We can further simplify the `case` as such:
-
-
-```java
-case ReadBuffer incoming -> {
-    // look for a new line
-    int eol = incoming.content().indexOf(END_LINE);
-    if (eol >= 0) {
-        // if there is a new line, the message is the buffer + incoming.content() split at newline
-        var line = buff + incoming.content().substring(0, eol);
-        incoming.tell(new LineRead(line));
-        // overwrite `buff` with the rest of the buffer (after the newline)
-        partial = incoming.content().substring(eol + 2);
-    } else {
-        // otherwise, concatenate the entire incoming buffer
-        partial = buff + incoming.content();
-    }
-    yield Become(clientSocketHandler(self, clientManager, channel, partial));
-}
-```
+When the recursive call is invoked, then the channel is subscribed again for reading. 
 
 This actor will also handle *writing* to the channel:
 
@@ -333,7 +314,7 @@ You can also make the other overload `private`.
 
 A `clientManager` is notified when a new client is connected, and it receives lines that are read from the input stream. Because the `clientManager` keeps track of all the `client` actors, it is able to forward them each `LineRead`.
 
-![clientManager forwards ServerMessage to all the connected clients](/assets/actor-2/message.gif)
+![clientManager forwards LineRead to all the connected clients](/assets/actor-2/actor-lineread.png)
 
 
 ```java
@@ -808,7 +789,7 @@ I am also happy to announce that [I have been selected](https://twitter.com/Java
 See you there!
 
 
-[andrea]: https://twitter.com/and_prf
+[andrea]: https://andreaperuffo.com
 [minjavactors]: https://evacchi.github.io/java/records/jbang/2021/10/12/learn-you-an-actor-system-java-17-switch-expressions.html
 [jbang]: https://jbang.dev
 [socket]: https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/net/ServerSocket.html
