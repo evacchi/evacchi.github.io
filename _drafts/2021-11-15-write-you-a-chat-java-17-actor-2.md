@@ -527,40 +527,37 @@ return msg -> switch (msg) {
 };
 ```
 
-you will notice that we need an actor to handle the socket. This is 100% identical to the one we wrote for the server. We can actually move that code to the `Channels` shared library and share it across the two implementations!
+you will notice that we need an actor to handle the socket. This is 100% identical to the one we wrote for the server. We can actually move that code to a `ChannelActor.java` shared library and share it across the two implementations!
 
 ```java
-interface Channels {
-    ...
-    interface Actor {
-        record LineRead(String payload) {}
-        record WriteLine(String payload) {}
-        record ReadBuffer(String content) {}
+interface ChannelActor {
+    record LineRead(String payload) {}
+    record WriteLine(String payload) {}
+    record ReadBuffer(String content) {}
 
-        static Behavior socketHandler(Address self, Address parent, Channels.Socket channel) {
-            return socketHandler(self, parent, channel, "");
-        }
-        private static Behavior socketHandler(Address self, Address parent, Channels.Socket channel, String acc) {
-            channel.read()
-                    .thenAccept(s -> self.tell(new ReadBuffer(s)))
-                    .exceptionally(err -> { err.printStackTrace(); return null; });
+    static Behavior socketHandler(Address self, Address parent, Channels.Socket channel) {
+        return socketHandler(self, parent, channel, "");
+    }
+    private static Behavior socketHandler(Address self, Address parent, Channels.Socket channel, String acc) {
+        channel.read()
+                .thenAccept(s -> self.tell(new ReadBuffer(s)))
+                .exceptionally(err -> { err.printStackTrace(); return null; });
 
-            return msg -> switch (msg) {
-                case ReadBuffer buffer -> {
-                    var line = acc + buffer.content();
-                    int eol = line.indexOf(END_LINE);
-                    if (eol >= 0) {
-                        parent.tell(new Channels.Actor.LineRead(line.substring(0, eol)));
-                        yield Become(socketHandler(self, parent, channel, line.substring(eol + 2).trim()));
-                    } else yield Become(socketHandler(self, parent, channel));
-                }
-                case WriteLine line -> {
-                    channel.write(line.payload());
-                    yield Stay;
-                }
-                default -> throw new RuntimeException("Unhandled message " + msg);
-            };
-        }
+        return msg -> switch (msg) {
+            case ReadBuffer buffer -> {
+                var line = acc + buffer.content();
+                int eol = line.indexOf(END_LINE);
+                if (eol >= 0) {
+                    parent.tell(new Channels.Actor.LineRead(line.substring(0, eol)));
+                    yield Become(socketHandler(self, parent, channel, line.substring(eol + 2).trim()));
+                } else yield Become(socketHandler(self, parent, channel));
+            }
+            case WriteLine line -> {
+                channel.write(line.payload());
+                yield Stay;
+            }
+            default -> throw new RuntimeException("Unhandled message " + msg);
+        };
     }
 }
 ```
@@ -574,6 +571,12 @@ case ClientConnection conn -> {
     yield Become(clientReady(self, socket));
 ```
 
+and add to the header:
+
+```java
+//SOURCES Channels.java
+```
+
 you can now do the same for the `serverSocketHandler` and get rid of a bunch of duplicate code:
 
 ```java
@@ -583,6 +586,12 @@ case ClientConnection conn -> {
             system.actorOf(ca -> Channels.Actor.socketHandler(ca, clientManager, conn.socket()));
     ...
 }
+```
+
+and add to the header:
+
+```java
+//SOURCES Channels.java
 ```
 
 Finally, here is the code for `ready`:
@@ -624,6 +633,7 @@ And now you are *really* done: you can now start a client with JBang! Add the fo
 //JAVA_OPTIONS  --enable-preview
 //DEPS com.fasterxml.jackson.core:jackson-databind:2.13.0
 //DEPS com.github.evacchi:min-java-actors:main-SNAPSHOT
+//DEPS com.github.evacchi:java-async-channels:main-SNAPSHOT
 //SOURCES Channels.java
 ```
 
@@ -656,10 +666,10 @@ Here is a full demo!
 </video>
 </div>
 
-## Appendix: A NIO Wrapper
 
 
-### A Naive Java Implementation
+
+## Addendum: A NIO Wrapper
 
 For this chat application ([after my friend Andrea][andrea] bugged me to no end), I have decided to use [the JDK's asynchronous Socket API][asyncsocket]. The `AsynchronousServerSocketChannel` API provides all you need to `accept()` incoming connections from clients. For instance: 
 
@@ -824,8 +834,6 @@ class Socket {
 }
 ```
 
-We are now ready to start.
-
 
 
 ## Conclusions
@@ -837,6 +845,7 @@ As promised in the [previous post][minjavactors], in the final part of this seri
 I am also happy to announce that [I have been selected](https://twitter.com/JavaAdvent/status/1457409222048636940) for the [Java Advent Calendar 2021][javaadvent], so the last part of this series will be first published on the [Java Advent Calendar][javaadvent] website! [Follow them on Twitter](https://twitter.com/JavaAdvent) for updates!
 
 See you there!
+
 
 [andrea]: https://twitter.com/and_prf
 [minjavactors]: https://evacchi.github.io/java/records/jbang/2021/10/12/learn-you-an-actor-system-java-17-switch-expressions.html
