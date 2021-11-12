@@ -414,29 +414,9 @@ We will define:
 
 Notice that, for simplicity, the messages that are written locally are not echoed immediately to screen (as it would usually happen). Instead, we will always print to screen whatever comes back from the server. Because the server always re-broadcasts *everything* to *everyone*, we will *also* effectively echo whatever the user wrote.
 
-Let's start with the "namespace" with a few utilities. We define a functional interface `IOBehavior` because serialization/deserialization methods throw `IOException`s:: 
-
-```java
-public interface ChatClient {
-    interface IOBehavior { Actor.Effect apply(Object msg) throws IOException; }
-    static Actor.Behavior IO(IOBehavior behavior) {
-        return msg -> {
-            try { return behavior.apply(msg); }
-            catch (IOException e) { throw new UncheckedIOException(e); }
-        };
-    }
-}
-```
-
-`IOBehavior` is basically *identical* to `Function<Object, Effect>` except it declares it `throws IOException`. The `IO` method turns a `IOBehavior` that throws `IOException`s into a plain `Behavior` that catches an `IOException` turning it into an `UncheckedIOException`. This will let us write:
-
-```java
-var myActor = sys.actorOf(self -> IO(msg -> /* IO-throwing body */));
-```
-
 There is only two types of messages:
 
-```
+```java
 record Message(String user, String text) {}
 ```
 
@@ -601,19 +581,22 @@ static Actor.Behavior clientReady(Address self, Address socket) {
     out.println("Connected.");
     var mapper = new ObjectMapper();
 
-    return IO(msg -> switch (msg) {
-        case Message m -> {
-            var jsonMsg = mapper.writeValueAsString(m);
-            socket.tell(new Channels.Actor.WriteLine(jsonMsg));
-            yield Stay;
-        }
-        case Channels.Actor.LineRead lr -> {
-            var message = mapper.readValue(lr.payload(), Message.class);
-            out.printf("%s > %s\n", message.user(), message.text());
-            yield Stay;
-        }
-        default -> throw new RuntimeException("Unhandled message " + msg);
-    });
+    return msg -> {
+        try {
+            switch (msg) {
+                case Message m -> {
+                    var jsonMsg = mapper.writeValueAsString(m);
+                    socket.tell(new ChannelActor.WriteLine(jsonMsg));
+                }
+                case ChannelActor.LineRead lr -> {
+                    var message = mapper.readValue(lr.payload().trim(), Message.class);
+                    out.printf("%s > %s\n", message.user(), message.text());
+                }
+                default -> throw new RuntimeException("Unhandled message " + msg);
+            }
+            return Stay;
+        } catch(JsonProcessingException e) { throw new UncheckedIOException(e); }
+    };
 }
 ```
 
