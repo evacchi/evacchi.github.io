@@ -15,17 +15,16 @@ Because this post is quite long, here is a table of contents.
 
 - [Overview](#overview)
   - [Protocol](#protocol)
-- [Boilerplate](#boilerplate)
+- [Sockets](#sockets)
 - [Chat Server](#chat-server)
   - [`serverSocketHandler`](#serversockethandler)
   - [`clientSocketHandler`](#clientsockethanler)
   - [`clientManager`](#clientmanager)
-  - [Wrapping It Up](#wrapping-it-up)
+  - [Starting The Server](#starting-the-server)
 - [Chat Client](#chat-client)
   - [Client](#client)
-  - Wrapping It Up
-- Addendum: A NIO Wrapper
-  - Managing Connections
+  - [Starting The Client](#starting-the-client)
+- [Addendum: A NIO Wrapper](#addendum-a-nio-wrapper)
 - [Conclusions](#conclusions)
 
 ## Overview
@@ -86,7 +85,7 @@ A *server*, similarly:
 In a real-world implementation the input should be at least parsed and validated, but we will skip it here for simplicity.
 
 
-## Boilerplate
+## Sockets
 
 We will handle socket connection using the [Java NIO `AsyncServerSocketChannel` and `AsyncSocketChannel`][asyncsocket].
 The original version of this blog post used [`java.net`'s `ServerSocket` and `Socket`][socket], which is a *blocking* API, which will take over the underlying thread of the pool: while it is still usable, it requires more boilerplate, and it is not a great companion to the actor programming model. In the future (heh, *`Future`s*, get it?) we may have better luck using blocking APIs on top of [Project Loom][loom]: then all threads will be "virtual threads". But in the meantime we will have to make do.
@@ -334,9 +333,9 @@ A `clientManager` is notified when a new client is connected, and it receives li
     }
 ```
 
-### Wrapping it up
+### Starting the Server
 
-There we go! We have now all the 
+There we go! We only need to create our actors in the `main` method: 
 
 ```java
 static void main(String... args) throws IOException, InterruptedException {
@@ -452,7 +451,7 @@ Let us now write the `main` routine with the initialization logic and the main u
 
 The only thing missing are now the 2 actors!
 
-### Client
+### Client Actor
 
 The client actor has two states: 
 
@@ -489,6 +488,7 @@ return msg -> switch (msg) {
     ...
 };
 ```
+
 
 you will notice that we need an actor to handle the socket. This is 100% identical to the one we wrote for the server. We can actually move that code to a `ChannelActor.java` shared library and share it across the two implementations!
 
@@ -588,7 +588,7 @@ static Actor.Behavior clientReady(Address self, Address socket) {
 deserializes it, and prints it to standard output.
 
 
-### Wrapping It Up
+### Starting the Client
 
 
 And now you are *really* done: you can now start a client with JBang! Add the following lines at the top of your file:
@@ -698,8 +698,6 @@ channel.connect(new InetSocketAddress(HOST, PORT_NUMBER), attachment, new Comple
 - it `read()`s from the connection all the incoming messages
 - it `write()`s each incoming message to the standard output (so the user can see it)
 - it reads user messages from the standard input
-
-## Managing Connections
 
 Now, order to keep our actors tidy, we can define a couple of handy private utility methods 
 to convert `CompletionHandler`s into `CompletableFuture`s:
