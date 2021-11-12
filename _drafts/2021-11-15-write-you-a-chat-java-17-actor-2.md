@@ -14,16 +14,18 @@ As promised, in this second part I am showing how to write a tiny chat client/se
 Because this post is quite long, here is a table of contents.
 
 - [Overview](#overview)
-  - [A Naive Java Implementation](#a-naive-java-implementation)
+  - [Protocol](#protocol)
+- [Boilerplate](#boilerplate)
 - [Chat Server](#chat-server)
-  - [Root Actors](#root-actors) 
-  - [`clientManager`](#clientmanager)
-  - [`clientOutput`](#clientoutput)
-  - [Polling](#polling)
-  - [`clientInput`](clientinput) 
   - [`serverSocketHandler`](#serversockethandler)
+  - [`clientSocketHandler`](#clientsockethanler)
+  - [`clientManager`](#clientmanager)
+  - [Wrapping It Up](#wrapping-it-up)
 - [Chat Client](#chat-client)
-  - [Client Actors](#client-actors)
+  - [Client](#client)
+  - Wrapping It Up
+- Addendum: A NIO Wrapper
+  - Managing Connections
 - [Conclusions](#conclusions)
 
 ## Overview
@@ -314,7 +316,7 @@ You can also make the other overload `private`.
 
 A `clientManager` is notified when a new client is connected, and it receives lines that are read from the input stream. Because the `clientManager` keeps track of all the `client` actors, it is able to forward them each `LineRead`.
 
-![clientManager forwards LineRead to all the connected clients](/assets/actor-2/actor-lineread.png)
+![clientManager forwards LineRead to all the connected clients](/assets/actor-2/actor-lineread.png  )
 
 
 ```java
