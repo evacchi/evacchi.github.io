@@ -285,18 +285,17 @@ When the recursive call is invoked, then the channel is subscribed again for rea
 case ReadBuffer incoming -> {
     // look for a new line
     int eol = incoming.content().indexOf(END_LINE);
-    String newBuff; 
     if (eol >= 0) {
         // if there is a new line, the message is the buffer + incoming.content() split at newline
         var line = buff + incoming.content().substring(0, eol);
         incoming.tell(new LineRead(line));
         // overwrite `buff` with the rest of the buffer (after the newline)
-        newBuff = incoming.content().substring(eol + 2);
+        partial = incoming.content().substring(eol + 2);
     } else {
         // otherwise, concatenate the entire incoming buffer
-        newBuff = buff + incoming.content();
+        partial = buff + incoming.content();
     }
-    yield Become(clientSocketHandler(self, clientManager, channel, newBuff));
+    yield Become(clientSocketHandler(self, clientManager, channel, partial));
 }
 ```
 
@@ -318,10 +317,10 @@ static Behavior clientSocketHandler(Address self, Address parent, Channels.Socke
 }
 ```
 
-For convenience, you may want to add the overload without the `buff` argument:
+For convenience, you may want to add the overload without the `partial` argument:
 
 ```java
-static Behavior clientSocketHandler(Address self, Address parent, Channels.Socket channel, String buff) {
+static Behavior clientSocketHandler(Address self, Address parent, Channels.Socket channel, String partial) {
     return clientSocketHandler(self, parent, channel, "");
 }
 ```
@@ -332,8 +331,7 @@ You can also make the other overload `private`.
 
 ### `clientManager`
 
-A `clientManager` is notified when a new client is connected, and it receives lines that are read from the input stream.
-Because the Client Manager keeps track of all Client Output actors, it is able to forward the `LineRead` to all of their outputs, i.e. their respective `clientSocketHandler` actor; this way all connected clients will receive a copy of the message.
+A `clientManager` is notified when a new client is connected, and it receives lines that are read from the input stream. Because the `clientManager` keeps track of all the `client` actors, it is able to forward them each `LineRead`.
 
 ![clientManager forwards ServerMessage to all the connected clients](/assets/actor-2/message.gif)
 
@@ -352,6 +350,10 @@ Because the Client Manager keeps track of all Client Output actors, it is able t
         };
     }
 ```
+
+### Wrapping it up
+
+There we go! We have now all the 
 
 ```java
 static void main(String... args) throws IOException, InterruptedException {
@@ -373,8 +375,8 @@ You can now start your server with JBang! Add the following lines at the top of 
 //JAVAC_OPTIONS --enable-preview --release 17
 //JAVA_OPTIONS  --enable-preview
 //REPOS jitpack=https://jitpack.io/
-//SOURCES Channels.java
 //DEPS com.github.evacchi:min-java-actors:main-SNAPSHOT
+//DEPS com.github.evacchi:java-async-channels:main-SNAPSHOT
 ```
 
 If everything is right, then you can type:
@@ -410,10 +412,9 @@ We will define:
 
 ![A client connecting to socket, reading messages from standard input, writing to standard output](/assets/actor-2/actor-client.png)
 
-Notice that, for simplicity, the messages that are written locally
-are not echoed immediately to screen (as it would usually happen). Instead, we will always print to screen whatever comes back from the server. Because the server always re-broadcasts *everything* to *everyone*, we will *also* effectively echo whatever the user wrote.
+Notice that, for simplicity, the messages that are written locally are not echoed immediately to screen (as it would usually happen). Instead, we will always print to screen whatever comes back from the server. Because the server always re-broadcasts *everything* to *everyone*, we will *also* effectively echo whatever the user wrote.
 
-Let's start with the "envelope" with a few utilities: 
+Let's start with the "envelope" with a few utilities. We define a functional interface `IOBehavior` because serialization/deserialization methods throw `IOException`s:: 
 
 ```java
 public interface ChatClient {
@@ -427,19 +428,6 @@ public interface ChatClient {
 }
 ```
 
-Let us also define a functional interface for I/O; because serialization/deserialization methods throw `IOException`s we define an `IOBehavior` that throws: 
-
-```java
-public interface ChatServer {
-    ...
-    interface IOBehavior { Actor.Effect apply(Object msg) throws IOException; }
-    static Actor.Behavior IO(IOBehavior behavior) {
-        return msg -> {
-            try { return behavior.apply(msg); } 
-            catch (IOException e) { throw new UncheckedIOException(e); }};
-}
-```
-
 `IOBehavior` is basically *identical* to `Function<Object, Effect>` except it declares it `throws IOException`. The `IO` method turns a `IOBehavior` that throws `IOException`s into a plain `Behavior` that catches an `IOException` turning it into an `UncheckedIOException`. This will let us write:
 
 ```java
@@ -448,22 +436,31 @@ var myActor = sys.actorOf(self -> IO(msg -> /* IO-throwing body */));
 
 There is only two types of messages:
 
-```java
-record ClientConnection(Channels.Socket socket) { }
+```
 record Message(String user, String text) {}
 ```
 
-In this case, the `Message` contains the nickname of the user who wrote the message, and the actual text of the message.
-Let us now write the `main` routine with the initialization logic and the main user input loop.
+In this case, the `Message` contains the nickname of the user who wrote the message, and the actual text of the message. 
 
 ```java
 Actor.System system = new Actor.System(Executors.newCachedThreadPool());
+```
+
+The `main` method:
+
+- takes the nickname from the first command-line argument:
+- it creates the `client` actor, to handle the socket connection
+- it starts the input reading loop: it will read from standard input the messages
+  and send them to the `client`. 
+
+```java
+String HOST = "localhost"; int PORT = 4444;
 
 static void main(String[] args) throws IOException {
     // take the user name from the CLI args
     var userName = args[0];
 
-    var channel = new Channels.Socket(AsynchronousSocketChannel.open());
+    var channel = Channels.Socket.open(HOST, PORT);
     // start the `client` actor in `connecting` state.
     var client = system.actorOf(self -> clientConnecting(self, channel));
 
@@ -482,6 +479,14 @@ static void main(String[] args) throws IOException {
 }
 ```
 
+where `Message` is a record defined as:
+
+```java
+record Message(String user, String text) {}
+```
+
+Let us now write the `main` routine with the initialization logic and the main user input loop.
+
 The only thing missing are now the 2 actors!
 
 ### Client
@@ -491,8 +496,10 @@ The client actor has two states:
 - connecting
 - ready
 
-We will model these using two behaviors. The first behavior `clientConnecting` connects to the socket
-and when the connection is established it `Become`s `ready`.
+We will model them as two behaviors. 
+
+- The first behavior `clientConnecting` connects to the socket
+- when the connection is established it `Become`s `ready`.
 
 If any `Message` is received while connecting, it is rejected with an error message.
 
@@ -501,18 +508,23 @@ static Actor.Behavior clientConnecting(Address self, Channels.Socket channel) {
     channel.connect()
             .thenAccept(skt -> self.tell(new ClientConnection(skt)))
             .exceptionally(err -> { err.printStackTrace(); return null; });
-    return msg -> switch (msg) {
-        case ClientConnection conn -> {
-            var socket = /// clientSocketHandler ?
-            yield Become(clientReady(self, socket));
-        }
-        case Message m -> {
-            err.println("Socket not connected");
-            yield Stay;
-        }
-        default -> throw new RuntimeException("Unhandled message " + msg);
-    };
-}
+```
+
+The `connect()` method returns a `Future<Channels.Socket>`. On success, we send the `ClientConnection` message
+to the actor and transition to the `ready` state.
+
+```java
+record ClientConnection(Channels.Socket socket) {}
+```
+
+```java
+return msg -> switch (msg) {
+    case ClientConnection conn -> {
+        var socket = /// clientSocketHandler ?
+        yield Become(clientReady(self, socket));
+    }
+    ...
+};
 ```
 
 you will notice that we need an actor to handle the socket. This is 100% identical to the one we wrote for the server. We can actually move that code to the `Channels` shared library and share it across the two implementations!
@@ -599,6 +611,10 @@ static Actor.Behavior clientReady(Address self, Address socket) {
 
 `serverSocketHandler` receives each line from the server, 
 deserializes it, and prints it to standard output.
+
+
+### Wrapping It Up
+
 
 And now you are *really* done: you can now start a client with JBang! Add the following lines at the top of your file:
 
