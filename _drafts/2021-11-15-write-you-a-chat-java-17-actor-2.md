@@ -9,7 +9,7 @@ Hello!
 
 Welcome back to ["Learn You An Actor (System) For Great Good!"][minjavactors]. If you haven't read [the first part][minjavactors], jump there to learn how to write a [minimalistic actor runtime using Java 17][minjavactors].
 
-As promised, in this second part I am showing how to write a tiny chat client/server [using the runtime we wrote last time][minjavactors]. Then we will run using [JBang!][jbang] Next time, we will learn how to create a **typed** version of the same actor runtime and revisit the examples!
+As promised, in this second part I am showing how to write a tiny chat client/server [using the runtime we wrote last time][minjavactors]. Then, we will run it using [JBang!][jbang] Next time, we will learn how to create a **typed** version of the same actor runtime and revisit the examples!
 
 Because this post is quite long, here is a table of contents.
 
@@ -31,18 +31,18 @@ Because this post is quite long, here is a table of contents.
 
 Our chat applications will be extremely simple.
 
-![Chat application where Duffman says "Are you ready?" to Carl, Lenny and Barney.](/assets/actor-2/chat.gif)
-
 Each user picks a nickname, they connect to a server through their client and then they write their messages. The client waits for user input and displays the messages that it receives from the server to the screen.
 
 The chat server accepts incoming connections, it receives messages, and it propagates them to all the clients that are connected at that time.
+
+![Chat application where Duffman says "Are you ready?" to Carl, Lenny and Barney.](/assets/actor-2/chat.gif)
 
 For instance, in this picture `Duffman` is sending the message `"Are you ready?"` to the server, and all of `Carl`, `Lenny` and `Barney` receive it ([to great sadness for Barney, who's the designated driver](https://www.youtube.com/watch?v=eEt-n0ZsYx8)).
 
 
 ### Protocol
 
-Computers transfer *bytes*, so our clients and server should know how to *chunk* the *incoming* stream of bytes into self-contained messages, and, likewise, they should *produce* an *outgoing* stream of bytes so that it is easy to chunk.
+Computers transfer *bytes*, so our clients and server should know how to *chunk* the *incoming* stream of bytes into self-contained messages; and, likewise, they should *produce* an *outgoing* stream of bytes that they know how to chunk.
 
 We will use a very simple line-based protocol:
 
@@ -65,34 +65,35 @@ This cleanly translates into a stream of JSON payloads of the form:
 ...
 ```
 
-In fact, because JSON does not allow unescaped newlines, we can safely use  `'\n'` as a message separator in the input/output stream of the socket.
+In fact, because JSON does not allow unescaped newlines, we can safely use  `'\n'` as a message separator in the input/output stream of the socket. 
 
-- In order to *send* a message, a *client*:
-  - serializes a message into JSON
+Then, in order to *send* a message, a *client*:
+  - serializes the message into JSON
   - it concatenates a newline character at the end of the payload
   - it writes the message to its outgoing stream
 
-- In order to *receive* a message, a *client*:
+In order to *receive* a message, a *client*:
   - buffers the bytes in its input stream, until a newline is encountered;
   - when a newline is found, bytes that have been buffered up to that point *are* a serialized message
   - thus, the client may deserialize the buffer and display the result message
 
-A *server*, similarly:
-- the server buffers the bytes in its input stream, until a newline is encountered
-- when a newline is found, bytes that have been buffered up to that point *are* a serialized message
-- each token (message) is immediately re-broadcast to all the connected clients
+A *server*, similarly, to broadcast messages:
+- buffers the bytes in its input stream, until a newline is encountered
+- when a newline is found, the bytes that have been buffered up to that point *are* a serialized message
+- each serialized message is immediately re-broadcast to all the connected clients
 
-In a real-world implementation the input should be at least parsed and validated, but we will skip it here for simplicity.
+In a real-world implementation, the input should be at least parsed and validated, but we will skip it here for simplicity.
 
 
 ## Sockets
 
-We will handle socket connection using the [Java NIO `AsyncServerSocketChannel` and `AsyncSocketChannel`][asyncsocket].
-The original version of this blog post used [`java.net`'s `ServerSocket` and `Socket`][socket], which is a *blocking* API, which will take over the underlying thread of the pool: while it is still usable, it requires more boilerplate, and it is not a great companion to the actor programming model. In the future (heh, *`Future`s*, get it?) we may have better luck using blocking APIs on top of [Project Loom][loom]: then all threads will be "virtual threads". But in the meantime we will have to make do.
+We will handle socket connections using the [Java NIO `AsyncServerSocketChannel` and `AsyncSocketChannel`][asyncsocket].
+
+The original version of this blog post used [`java.net`'s `ServerSocket` and `Socket`][socket]: these are *blocking* APIs, so they would take over the underlying thread of the pool. While they are usable, they require more boilerplate, and they do not make a great companion to the actor programming model. In the future (heh, *`Future`s*, get it?) we may have better luck using blocking APIs on top of [Project Loom][loom]: then all threads will be "virtual threads". But in the meantime we will have to make do.
 
 The full story is that about one week ago I was finished polishing this blog post. Then I let my friend [Andrea][andrea] read it, and he basically rewrote the example from scratch using `Java NIO`. Indeed, the result is way simpler, but I am now here rewriting the entire blog post. Gee, thanks, I guess.
 
-Jokes aside, [NIO APIs][asyncsocket] plays much better and allowed to get rid of most boilerplate. However, they were developed before Java 8, so a lot of goodies such as lambdas and `CompletableFuture`s were still not available; it is thus a bit clunky to use. For your convenience, and in order not to burden too much the description, we have prepared a tiny library that you can import in your code, that wraps the callback-based APIs in `AsyncServerSocketChannel` and `AsyncSocketChannel`, into APIs that return a `CompletableFuture`.
+Jokes aside, [NIO APIs][asyncsocket] plays much better with the actor runtime, and it allowed to get rid of most of the boilerplate. However, these APIs were largely developed before Java 8, so a lot of goodies such as lambdas and `CompletableFuture`s were still not available; they are thus a bit clunky to use. For your convenience, and in order not to burden too much this article, we have prepared a tiny library that you can import in your code, that wraps the callback-based APIs in `AsyncServerSocketChannel` and `AsyncSocketChannel`, into APIs that return a `CompletableFuture`.
 
 It was designed so that you can use it from a JBang script by adding the directives:
 
@@ -141,7 +142,6 @@ The method returns a `CompletableFuture<Channels.Socket>`. Thus, we need to hand
 
 ```java
 static Behavior serverSocketHandler(Address self, Address clientManager, Channels.ServerSocket serverSocket) {
-    out.println("Server in open socket!");
     serverSocket.accept()
             .thenAccept(skt -> self.tell(new ClientConnection(skt)))
             .exceptionally(exc -> { exc.printStackTrace(); return null; });
@@ -162,12 +162,12 @@ the actual *behavior* is then to handle such a message:
 ```java
 return msg -> switch (msg) {
     case ClientConnection conn -> {
-        out.println("Child connected!");
+        out.printf("Client connected at %s\n", conn.socket().remoteAddress());
         var client =
-                system.actorOf(ca -> clientSocketHandler(ca, clientManager, conn.socket()));
-        clientManager.tell(new ClientConnected(client));
+                system.actorOf(ca -> ChannelActor.socketHandler(ca, childrenManager, conn.socket()));
+        childrenManager.tell(new ClientConnected(client));
 
-        yield Become(serverSocketHandler(self, clientManager, serverSocket));
+        yield Become(serverSocketHandler(self, childrenManager, serverSocket));
     }
     default -> throw new RuntimeException("Unhandled message " + msg);
 };
@@ -219,33 +219,33 @@ channel.read()
 
 Similarly to the previous case, we handle the succesful case by sending the `ReadBuffer` message to the actor.
 
-Now, if you recall, we need to look for newlines in the buffer, and tokenize the input; because the buffer it's for its nature, a "sliding window", we also need to keep around an accumulator:
+Now, if you recall, we need to look for newlines in the buffer, and tokenize the input; because the buffer it's for its nature, a "sliding window", we also need to keep around an accumulator. For instance, suppose that we receive first the message "Hi!" from Carl and then "Hello" from Lenny.
 
 ```
-
-picture here:
-
-
+{"Carl":"Hi!"}
+{"Lenny":"Hello"}
 ```
+
+If the "window" is not large enough to contain an entire message it would need
+to keep the partial message around until it finds a newline.
+
+![Sliding window with partial message until a newline is found](/assets/actor-2/sliding.gif)
 
 
 ```java
 String partial; // string that we have read so far  
 case ReadBuffer incoming -> {
-    // look for a new line
-    int eol = incoming.content().indexOf(END_LINE);
+    int eol = incoming.content().indexOf('\n');
     if (eol >= 0) {
-        // if there is a new line, the message is partial + incoming.content() split at newline
         var line = partial + incoming.content().substring(0, eol);
         clientManager.tell(new LineRead(line));
-        // overwrite `partial` with the rest of the buffer (after the newline)
-        partial = incoming.content().substring(eol + 2);
-        // invoke again channel.read() and wait for more buffered input
+        var rest = incoming.content().substring(Math.min(eol + 2, incoming.content().length()));
+        yield Become(socketHandler(self, clientManager, channel, rest));
     } else {
-        // otherwise, concatenate the entire incoming buffer
-        partial += incoming.content();
-        // invoke again channel.read() and wait for more buffered input
+        var rest = partial + incoming.content();
+        yield Become(socketHandler(self, clientManager, channel, rest));
     }
+}
 ```
 
 We can create a "recursive" behavior that accumulates into `partial` the message that has been read so-far.
@@ -260,21 +260,18 @@ static Behavior clientSocketHandler(Address self, Address clientManager, Channel
 
     return switch (msg) {
         case ReadBuffer incoming -> {
-            // look for a new line
-            int eol = incoming.content().indexOf(END_LINE);
+            int eol = incoming.content().indexOf('\n');
             if (eol >= 0) {
-                // if there is a new line, the message is the buffer + incoming.content() split at newline
                 var line = partial + incoming.content().substring(0, eol);
                 clientManager.tell(new LineRead(line));
-                // overwrite `buff` with the rest of the buffer (after the newline)
                 var rest = incoming.content().substring(Math.min(eol + 2, incoming.content().length()));
-                yield Become(clientSocketHandler(self, clientManager, channel, rest));
+                yield Become(socketHandler(self, clientManager, channel, rest));
             } else {
-                // otherwise, concatenate the entire incoming buffer
                 var rest = partial + incoming.content();
-                yield Become(clientSocketHandler(self, clientManager, channel, rest));
+                yield Become(socketHandler(self, clientManager, channel, rest));
             }
-            // other cases...
+        }
+        // other cases...
     };
 }
 ```
@@ -286,7 +283,7 @@ This actor will also handle *writing* to the channel:
 ```java
 record WriteLine(String payload) {}
 
-static Behavior clientSocketHandler(Address self, Address parent, Channels.Socket channel, String buff) {
+static Behavior clientSocketHandler(Address self, Address parent, Channels.Socket channel, String partial) {
     ...
     msg -> switch (msg) {
         ...
@@ -370,13 +367,13 @@ j! ChatServer.java
 If you are lazy, you can run it from this URL directly: 
 
 ```
-j! ....
+j! raw.githubusercontent.com/evacchi/min-java-actors/main/src/main/java/io/github/evacchi/asyncchat/ChatServer.java
 ```
 
 The program will start waiting for incoming connections, printing:
 
 ```sh
-Server started at 0.0.0.0/0.0.0.0:4444.
+Server started at /127.0.0.1:4444.
 ```
 
 Neat, huh?
@@ -606,27 +603,27 @@ And now you are *really* done: you can now start a client with JBang! Add the fo
 If everything is right, then you can type:
 
 ```sh
-j! ChatClient.java your-nickname
+j! https://raw.githubusercontent.com/evacchi/min-java-actors/main/src/main/java/io/github/evacchi/asyncchat/ChatClient.java
 ```
 
 If you are lazy, you can run it from this Gist directly (make sure the server is running!): 
 
 ```
-j! ..... your-nickname
+j! https://raw.githubusercontent.com/evacchi/min-java-actors/main/src/main/java/io/github/evacchi/asyncchat/ChatClient.java your-nickname
 ```
 
 The program will start waiting for incoming connections, printing something like:
 
 ```sh
-Login........your-nickname
-Local Port...57942
-Server.......localhost/127.0.0.1:4444
+Login...............your-nickname
+Local connection..../127.0.0.1:61735
+Remote connection...localhost/127.0.0.1:4444
 ```
 
 Here is a full demo!
 
 <div style="text-align: center">
-<video controls autoplay width="402" height="600">
+<video controls autoplay>
   <source src="/assets/actor-2/chat-demo.mp4" type="video/mp4">
   <a href="/assets/actor-2/chat-demo.mp4">Full demo</a>
 </video>
