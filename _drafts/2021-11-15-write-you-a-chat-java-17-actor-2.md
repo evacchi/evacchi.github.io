@@ -9,7 +9,7 @@ Hello!
 
 Welcome back to ["Learn You An Actor (System) For Great Good!"][minjavactors]. If you haven't read [the first part][minjavactors], jump there to learn how to write a [minimalistic actor runtime using Java 17][minjavactors].
 
-As promised, in this second part I am showing how to write a tiny chat client/server [using the runtime we wrote last time][minjavactors]. Then, we will run it using [JBang!][jbang] Next time, we will learn how to create a **typed** version of the same actor runtime and revisit the examples!
+As promised, in this second part I am showing how to write a tiny chat client/server [using the runtime we wrote][minjavactors]. Then, we will run it using [JBang!][jbang] Next time, we will learn how to create a **typed** version of the same actor runtime and revisit the examples!
 
 Because this post is quite long, here is a table of contents.
 
@@ -29,11 +29,11 @@ Because this post is quite long, here is a table of contents.
 
 ## Overview
 
-Our chat applications will be extremely simple.
+Our chat applications will be extremely simple:
 
-Each user picks a nickname, they connect to a server through their client and then they write their messages. The client waits for user input and displays the messages that it receives from the server to the screen.
-
-The chat server accepts incoming connections, it receives messages, and it propagates them to all the clients that are connected at that time.
+Each user picks a nickname, they connect to a server through their client and then they send messages to eachother:
+- The client waits for the user to input the text of a message; it also displays the messages that it receives from the server.
+- The chat server accepts incoming connections, it receives messages, and it propagates them to all the clients that are connected.
 
 ![Chat application where Duffman says "Are you ready?" to Carl, Lenny and Barney.](/assets/actor-2/chat.gif)
 
@@ -57,7 +57,7 @@ User B: Message 2 \n
 ...
 ```
 
-This cleanly translates into a stream of JSON payloads of the form:
+We may encode this in the following stream of JSON payloads :
 
 ```
 { "User A": "Message 1" } \n
@@ -151,7 +151,7 @@ static Behavior serverSocketHandler(Address self, Address clientManager, Channel
 
 In the *exceptional* case, we just print the error. We may also kill the actor and restart it. As an exercise you may customize this behavior.
 
-In the *succesful* case, we send a *message* to the actor, so that it can resume processing:
+In the *successful* case, we send a *message* to the actor, so that it can resume processing:
 
 ```java
 record ClientConnection(Channels.Socket socket) {}
@@ -232,24 +232,8 @@ to keep the partial message around until it finds a newline.
 ![Sliding window with partial message until a newline is found](/assets/actor-2/sliding.gif)
 
 
-```java
-String partial; // string that we have read so far  
-case ReadBuffer incoming -> {
-    int eol = incoming.content().indexOf('\n');
-    if (eol >= 0) {
-        var line = partial + incoming.content().substring(0, eol);
-        clientManager.tell(new LineRead(line));
-        var rest = incoming.content().substring(Math.min(eol + 2, incoming.content().length()));
-        yield Become(socketHandler(self, clientManager, channel, rest));
-    } else {
-        var rest = partial + incoming.content();
-        yield Become(socketHandler(self, clientManager, channel, rest));
-    }
-}
-```
-
 We can create a "recursive" behavior that accumulates into `partial` the message that has been read so-far.
-We make `buff` an argument of the method:
+We make `partial` an argument of the method:
 
 ```java
 static Behavior clientSocketHandler(Address self, Address clientManager, Channels.Socket channel, String partial) {
@@ -260,9 +244,10 @@ static Behavior clientSocketHandler(Address self, Address clientManager, Channel
 
     return switch (msg) {
         case ReadBuffer incoming -> {
-            int eol = incoming.content().indexOf('\n');
+            var acc = (partial + incoming.content());
+            var eol = acc.indexOf('\n');
             if (eol >= 0) {
-                var line = partial + incoming.content().substring(0, eol);
+                var line = acc.substring(0, eol);
                 clientManager.tell(new LineRead(line));
                 var rest = incoming.content().substring(Math.min(eol + 2, incoming.content().length()));
                 yield Become(socketHandler(self, clientManager, channel, rest));
@@ -367,7 +352,7 @@ j! ChatServer.java
 If you are lazy, you can run it from this URL directly: 
 
 ```
-j! raw.githubusercontent.com/evacchi/min-java-actors/main/src/main/java/io/github/evacchi/asyncchat/ChatServer.java
+j! https://raw.githubusercontent.com/evacchi/min-java-actors/main/src/main/java/io/github/evacchi/asyncchat/ChatServer.java
 ```
 
 The program will start waiting for incoming connections, printing:
@@ -537,7 +522,7 @@ and add to the header:
 //SOURCES Channels.java
 ```
 
-you can now do the same for the `serverSocketHandler` and get rid of a bunch of duplicate code:
+you can now do the same for the `serverSocketHandler` in `ChatServer` and get rid of a bunch of duplicate code:
 
 ```java
 case ClientConnection conn -> {
@@ -558,7 +543,6 @@ Finally, here is the code for `ready`:
 
 ```java
 static Actor.Behavior clientReady(Address self, Address socket) {
-    out.println("Connected.");
     var mapper = new ObjectMapper();
 
     return msg -> {
@@ -581,8 +565,8 @@ static Actor.Behavior clientReady(Address self, Address socket) {
 ```
 
 
-`serverSocketHandler` receives each line from the server, 
-deserializes it, and prints it to standard output.
+In this state, the client receives each line from the server (`LineRead`), deserializes it, and prints it to standard output.
+It also receives each `Message` from user input. It serializes it, and then tells the server (`socket`) to write the payload on a new line (`WriteLine`).
 
 
 ### Starting the Client
@@ -634,7 +618,7 @@ Here is a full demo!
 
 ## Addendum: A NIO Wrapper
 
-For this chat application ([after my friend Andrea][andrea] bugged me to no end), I have decided to use [the JDK's asynchronous Socket API][asyncsocket]. The `AsynchronousServerSocketChannel` API provides all you need to `accept()` incoming connections from clients. For instance: 
+For this chat application, [my friend Andrea][andrea] bugged me to no end to use [the JDK's asynchronous Socket API][asyncsocket]. In all fairness, he actually rewrote my code from scratch. Then I reformatted it a bit. The `AsynchronousServerSocketChannel` API provides all you need to `accept()` incoming connections from clients. For instance: 
 
 ```java
 var socketChannel = AsynchronousServerSocketChannel.open();
@@ -696,7 +680,7 @@ channel.connect(new InetSocketAddress(HOST, PORT_NUMBER), attachment, new Comple
 - it `write()`s each incoming message to the standard output (so the user can see it)
 - it reads user messages from the standard input
 
-Now, order to keep our actors tidy, we can define a couple of handy private utility methods 
+Now, order to keep our actors tidy, we may define a couple of handy private utility methods 
 to convert `CompletionHandler`s into `CompletableFuture`s:
 
 ```java
@@ -717,8 +701,8 @@ interface Channels {
 }
 ```
 
-You may use these methods directly, but instead, I suggest we create two handy wrappers for `AsynchronousServerSocketChannel` and 
-`AsynchronousSocketChannel`. Nest under `Channels` this `ServerSocket` wrapper for `AsynchronousServerSocketChannel`:
+You may use these methods directly, but instead, I created two handy wrappers for `AsynchronousServerSocketChannel` and 
+`AsynchronousSocketChannel`, nested under `Channels`. `Channels.ServerSocket` is a wrapper for `AsynchronousServerSocketChannel`:
 
 ```java
 class ServerSocket {
@@ -741,7 +725,7 @@ class ServerSocket {
 }
 ```
 
-and `Socket`, wrapping `AsynchronousSocketChannel`:
+and `Channels.Socket` wraps `AsynchronousSocketChannel`:
 
 ```java
 class Socket {
@@ -773,7 +757,7 @@ class Socket {
 }
 ```
 
-
+And that's pretty much it.
 
 ## Conclusions
 
