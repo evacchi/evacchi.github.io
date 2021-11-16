@@ -25,8 +25,8 @@ In the following I will explain what an actor system is, I will show you how
 to implement the behavior of an actor using pattern matching and records, 
 and finally, how to write the actor runtime using Java 17.
 
-**This blog post is part of a series**. Next time, I will post a larger use case
-(a tiny chat client-server). In the third part, I will described a typed extension to this actor runtime.
+**This blog post is part of a series**. [Next time, I will post a larger use case
+(a tiny chat client-server)][part2]. In the third part, I will described a typed extension to this actor runtime.
 
 Because this post is a bit long, I added here a table of contents.
 
@@ -973,7 +973,7 @@ they specify the type of objects that they accept.
 This allows you to match against **sealed hierarchies** of types,
 and even avoid pattern matching entirely in some cases. 
 
-Next time, we will see how to write a tiny chat server with its corresponding client, and run it through JBang; but in the final post, I will publish a follow-up to this blog post with an **updated, typed version**  of this tiny actor runtime, where, instead of:
+[Next time, we will see how to write a tiny chat server with its corresponding client, and run it through JBang][part2]; but in the final post, I will publish a follow-up to this blog post with an **updated, typed version**  of this tiny actor runtime, where, instead of:
 
 ```java
 interface Behavior extends Function<Object, Effect> {}
@@ -1013,3 +1013,4 @@ In the meantime, you can try it for yourself!
 [jep361]: https://openjdk.java.net/jeps/361
 [wiki-actor]: https://en.wikipedia.org/wiki/Actor_model#Fundamental_concepts
 [closures-objects]: http://people.csail.mit.edu/gregs/ll1-discuss-archive-html/msg03277.html
+[part2]: /java/records/jbang/2021/11/16/write-you-a-chat-java-17-actor.html
