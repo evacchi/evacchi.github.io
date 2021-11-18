@@ -48,7 +48,6 @@ A.java:6: error: the switch statement does not cover all possible input values
 In my [previous blog posts][first-part] I have detailed how to develop an actor runtime for *untyped actors*; that is, actors that can accept *any kind of message*. In this part we are rewriting that actor runtime from scratch and implement a **typed actor runtime**, and we will see how sealed type hierarchies can improve the code we write!
 
 
-1. [JEP-330 and JBang](#jep-330-and-jbang)
 1. [A Bit of Boilerplate](#a-bit-of-boilerplate)
 2. [The Actor Model](#the-actor-model)
   - [Behaviors and Effects](#behaviors-and-effects)
@@ -68,7 +67,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import static java.lang.System.out;
 
-public interface Actor {
+public interface TypedActor {
     interface Effect<T> extends Function<Behavior<T>, Behavior<T>> {}
     interface Behavior<T> extends Function<T, Effect<T>> {}
     interface Address<T> { void tell(T msg); }
@@ -79,15 +78,15 @@ public interface Actor {
         public <T> Address<T> actorOf(Function<Address<T>, Behavior<T>> initial) {
             abstract class AtomicRunnableAddress<T> implements Address<T>, Runnable
                 { AtomicInteger on = new AtomicInteger(0); }
-            var addr = new AtomicRunnableAddress<T>() {
+            return new AtomicRunnableAddress<T>() {
                 // Our awesome little mailbox, free of blocking and evil
                 final ConcurrentLinkedQueue<T> mbox = new ConcurrentLinkedQueue<>();
-                Behavior<T> behavior = // Rebindable top of the mailbox, bootstrapped to identity
-                        m -> (m instanceof Address self) ? Become(initial.apply((Address<T>) self)) : Stay();
+                Behavior<T> behavior = initial.apply(this);
                 public void tell(T msg) { mbox.offer(msg); async(); }  // Enqueue the message onto the mailbox and try to schedule for execution
                 // Switch ourselves off, and then see if we should be rescheduled for execution
                 public void run() {
-                    try { if (on.get() == 1) behavior = behavior.apply((T) mbox.poll()).apply(behavior); } finally { on.set(0); async(); }
+                    try { if (on.get() == 1) { T m = (T) mbox.poll(); if (m != null) behavior = behavior.apply(m).apply(behavior); }
+                    } finally { on.set(0); async(); }
                 }
                 // If there's something to process, and we're not already scheduled
                 void async() {
@@ -96,17 +95,14 @@ public interface Actor {
                         try { executor.execute(this); } catch (Throwable t) { on.set(0); throw t; }
                     }
                 }
-                void init() { executor.execute(() -> { behavior = initial.apply(this); async();}); }
             };
-            addr.init(); // Make the actor self aware by seeding its address to the initial behavior
-            return addr;
         }
     }
 }
 ```
 {: style="font-size: small"}
 
-In the following, we will go through each line and learn what it is doing, and try the code along the way.
+But before we get to that, let us learn more about what it does.
 
 ## The Actor Model
 
@@ -126,11 +122,14 @@ Actors usually encapsulate *state*; thus, as a side-effect, the *behavior*
 function usually updates the state of the actor; it may send other messages
 to other actors, and creates new actors to handle new state.
 
-For instance, consider the case of an HTTP request to initiate
-a long computation. You may have an actor that receives a message and acknowledges the sender; 
-then it may create the actor to process the request.
-The long computation will start and run asynchronously in the background, while
-the response will float back to the sender.
+For instance, you will have noticed how most web platforms allow
+you to export the content you have created; but most of them
+will start a background process and will notify you later when the archive 
+is ready; for instance, by sending a link to your e-mail address. 
+
+When the service receives your "export" request, an actor may be responsible
+for acknowledging your request immediately; but it may spawn another actor 
+to process the request in the background.
 
 <div>
 <img src="/assets/actor-3/diag-spawn.png" alt="Diagram of an HTTP request actor" />
@@ -148,29 +147,23 @@ i.e. the behavior that should be called when a new message is evaluated.
 Such a routine is called a *behavior*, and in code, the `Behavior` can be defined 
 as a function that takes a message of some type, and it returns a *transition*
 between states that we call an `Effect`:
- 
 
-```java
-Function<Object, Effect> // Behavior
+```
+Behavior : T ⟶ Effect
 ```
 
+where `T` is some known type.
 
-An `Effect` would be a way to describe a *transition* between two 
-states of the actor. It can be represented as a *function* that takes the current `Behavior` and 
-returns the next `Behavior`:
 
-```java
-Function<Behavior, Behavior> {}
+An `Effect` describes a *transition* between two 
+states of the actor. It can be represented as a *function* 
+that takes the current `Behavior` and returns the next `Behavior`:
+
+```
+Effect : Behavior ⟶ Behavior
 ```
 
-
-Now, we want to our actor to be *typed*. Thus, a `Function<Object, Effect>`
-is not the best way to express it; in fact, that would mean that an actor
-may receive *any* type of objects; instead what we really want is to *tie*
-an actor to a *specific* type `T`.
-
-Thus, we want something like `Function<T, Effect>`; more specifically, 
-we may define it as:
+In code, we may write it as:
 
 ```java
 interface Behavior<T> extends Function<T, Effect<T>> {}
@@ -218,9 +211,9 @@ You will recognize the behavior `receiveThenDie` that we defined above.
 
 ```java
 // create an actor runtime (an actor "system")
-Actor.System actorSystem = new Actor.System(Executors.newCachedThreadPool());
+var actorSystem = new Actor.System(Executors.newCachedThreadPool());
 // create an actor
-Address<String> actor = actorSystem.actorOf(self -> (String msg) -> {
+var actor = actorSystem.actorOf(self -> msg -> {
     out.println("self: " + self + " got msg " + msg);
     return Actor.Die();
 });
@@ -257,7 +250,7 @@ because the `"bar"` message was sent to a dead actor.
 If we change the lambda to return `stay` instead:
 
 ```java
-var actor = actorSystem.actorOf(self -> (String msg) -> {
+var actor = actorSystem.actorOf(self -> msg -> {
     out.println("self: " + self + " got msg " + msg);
     return Actor.Stay();
 });
@@ -302,15 +295,14 @@ And that effect is taking the `current` behavior and returning the `next` one.
 Thus, `Die` is just an effect that takes the `prev` behavior and returns the behavior to drop
 all messages, and then `Stay`s in that state.
 
-
 With the exception of `Become`, which takes a parameter (`next`), you may be wondering
-why `Stay` and `Die` could not just be constant fields:
+why `Stay` and `Die` are not constant fields:
 
 ```java
 static Effect<T> Stay =  return current -> current; 
 ```
 
-If you are familiar with the [untyped version][first-part] we, you'll remember that's how
+If you are familiar with the [untyped version][first-part], you'll remember that's how
 we did it at that time. However, the key here is that little `<T>` up there. We have to use
 a method to let the compiler infer the `T`.
 
@@ -564,18 +556,19 @@ The messages will be:
 
 ```java
 sealed interface Vend {}
-record Coin(int amount){
+static record Coin(int amount) implements Vend {
     public Coin {
         if (amount < 1 && amount > 100)
-            throw new AssertionError("1 <= amount < 100"); } 
+            throw new AssertionError("1 <= amount < 100");
+    }
 }
-record Choice(String product){}
+static record Choice(String product) implements Vend {}
 ```
 
 And the behavior will be:
 
 ```java
-Effect<Vend> initial(Vend message) {
+static Effect<Vend> initial(Vend message) {
     return switch(message) {
         case Coin c -> {
             out.println("Received first coin: " + c.amount);
@@ -584,7 +577,7 @@ Effect<Vend> initial(Vend message) {
         default -> Stay(); // ignore message, stay in this state
     };
 }
-Effect<Vend> waitCoin(Vend message, int counter) {
+static Effect<Vend> waitCoin(Vend message, int counter) {
     return switch(message) {
         case Coin c && counter + c.amount() < 100 -> {
             var count = counter + c.amount();
@@ -600,23 +593,22 @@ Effect<Vend> waitCoin(Vend message, int counter) {
         default -> Stay(); // ignore message, stay in this state
     };
 }
-Effect<Vend> vend(Vend message, int change) {
+static  Effect<Vend> vend(Vend message, int change) {
     return switch(message) {
         case Choice c -> {
             vendProduct(c.product());
             releaseChange(change);
-            yield Become(this::initial);
+            yield Become(m -> initial(m));
         }
         default -> Stay(); // ignore message, stay in this state
     };
 }
 
-
-void vendProduct(String product) {
+static void vendProduct(String product) {
     out.println("VENDING: " + product);
 }
 
-void releaseChange(int change) {
+static  void releaseChange(int change) {
     out.println("CHANGE: " + change);
 }
 ```
@@ -652,35 +644,35 @@ If an action is costly (e.g. blocking), an actor may decide to spawn another act
 to serve that action. For instance:
 
 ```java
-record VendItem(String product){}
-record ReleaseChange(int amount){}
+record VendItem(String product) implements Vend {}
+record ReleaseChange(int amount) implements Vend {}
 
-Effect vend(Object message, int change) {
+static Effect<Vend> vend(Vend message, int change) {
     return switch(message) {
         case Choice c -> {
             var vendActor = system.actorOf(self -> m -> vendProduct(m));
             vendActor.tell(new VendItem(c.product()))
             var releaseActor = system.actorOf(self -> m -> release(m));
             releaseActor.tell(new ReleaseChange(change))
-            yield Become(this::initial);
+            yield Become(m -> initial(m));
         }
-        default -> Stay; // ignore message, stay in this state
+        default -> Stay(); // ignore message, stay in this state
         ...
     }
 }
-Effect vendItem(Object message) {
+Effect<Vend> vendItem(Vend message) {
     return switch (message) {
         case VendItem item -> {
             // ... vend the item ...
-            yield Die // we no longer need to stay alive.
+            yield Die() // we no longer need to stay alive.
         }
     }
 }
-Effect release(Object message, int change) {
+Effect<Vend> release(Vend message, int change) {
     return switch (message) {
         case ReleaseChange c -> {
             // ... release the amount ...
-            yield Die // we no longer need to stay alive.
+            yield Die() // we no longer need to stay alive.
         }
     }
 }
@@ -699,17 +691,17 @@ val actor = Actor( self => msg => { println("self: " + self + " got msg " + msg)
 
 
 Although that is convenient we can achieve just the same result by creating a factory object
-(`Actor.System`) carrying the `ExecutorService` for us. The method `Actor#apply` is defined in Scala as follows:
+(`TypedActor.System`) carrying the `ExecutorService` for us. The method `TypedActor#apply` is defined in Scala as follows:
 
 ```scala
 def apply(initial: Address => Behavior)(implicit e: Executor): Address
 ```
 
-that allows to create an actor with `Actor( self => msg => ... )`; can be substituted by a method
-`actorOf` of the `Actor.System` factory. 
+that allows to create an actor with `TypedActor( self => msg => ... )`; can be substituted by a method
+`actorOf` of the `TypedActor.System` factory. 
 
 ```java
-public interface Actor {
+public interface TypedActor {
     class System {
         Executor executor;
         public System(Executor executor) { this.executor = executor; }
@@ -725,7 +717,7 @@ don't have to write an explicit constructor:
 
 ```java
 record System(Executor executor) {
-    public Address actorOf(Function<Address, Behavior> initial) {
+    public <T> Address<T> actorOf(Function<Address<T>, Behavior<T>> initial) {
         // ... references the executor ...
     }
 }
@@ -747,20 +739,19 @@ We can use another under-used feature of Java: local classes; i.e. a class that 
 So instead of:
 
 ```java
-  abstract class AtomicRunnableAddress implements Address, Runnable
+abstract class AtomicRunnableAddress<T> implements Address<T>, Runnable
     { AtomicInteger on = new AtomicInteger(0); }
-  record System(ExecutorService executorService) {
-        public Address actorOf(Function<Address, Behavior> initial) {
+record System(ExecutorService executorService) {
+    public <T> Address<T> actorOf(Function<Address<T>, Behavior<T>> initial) {
 ```
 
 we write:
 
 ```java
-  record System(ExecutorService executorService) {
-        // Seeded by the self-reference that yields the initial behavior
-        public Address actorOf(Function<Address, Behavior> initial) {
-            abstract class AtomicRunnableAddress implements Address, Runnable
-                { AtomicInteger on = new AtomicInteger(0); }
+record System(Executor executor) {
+    public <T> Address<T> actorOf(Function<Address<T>, Behavior<T>> initial) {
+        abstract class AtomicRunnableAddress<T> implements Address<T>, Runnable
+            { AtomicInteger on = new AtomicInteger(0); }
 ```
 
 which makes `AtomicRunnableAddress` private to that method (which is all we need).
@@ -772,12 +763,11 @@ we now create our object:
 
 ```java
 var addr = new AtomicRunnableAddress() {
-    // the mailbox is just concurrent queue
-    final ConcurrentLinkedQueue<Object> mbox = new ConcurrentLinkedQueue<>();
-    // current behavior is a mutable field.   
-    Behavior behavior = 
-            // the initial behavior is to receive an address and then apply the initial behavior
-            m -> { if (m instanceof Address self) return new Become(initial.apply(self)); else return Stay; };
+    // the mailbox is just a concurrent queue
+    final ConcurrentLinkedQueue<T> mbox = new ConcurrentLinkedQueue<>();
+    // current behavior is a mutable field.  
+    // the initial behavior applies the `initial` function to `this`, seeding `self` reference to the initial behavior
+    Behavior behavior = initial.apply(this);
   ...
 };
 addr.tell(addr); 
@@ -789,37 +779,37 @@ Here is the reason why our actors are created with this strange curried function
 var actor = system.actorOf(self -> msg -> ...);
 ```
 
-the signature for the initial behavior is really: `Function<Address, Behavior>` which "expands" to 
+the signature for the initial behavior is really: `Function<Address<T>, Behavior<T>>` which "expands" to 
 
 ```java
-Function<Address, Function<Object, Effect>>
+Function<Address<T>, Function<T, Effect<T>>>
 ```
 
 or, to write it in a possibly more readable format:
 
 ```
-Address -> Object -> Effect
+Address<T> -> T -> Effect<T>
 // self -> msg -> ...
 ```
 
-The reason why we write it this way is so that the `Function<Object, Effect>` (i.e. the `Behavior`) 
+The reason why we write it this way is so that the `Function<T, Effect>` (i.e. the `Behavior`) 
 can reference `self`. As we saw in [Example 3: A Vending Machine](#example-3-a-vending-machine) this is often equivalent to writing a class
-that takes an `Address` in its constructor. And that is because ["a closure is a poor man’s object; an object is a poor man’s closure”][closures-objects].
+that takes an `Address<T>` in its constructor. And that is because ["a closure is a poor man’s object; an object is a poor man’s closure”][closures-objects].
 
-When the actor starts we send the address to itself:
-
+When the actor starts we initialize the `Behavior<T>` to a reference to `this`
 
 ```java
-addr.tell(addr); 
+Behavior behavior = initial.apply(this);
 ```
 
 Let us now take a look at the `tell()` method; at its core we may write it as:
 
 ```java
-public void tell(Object msg) {
+public Address<T> tell(Object msg) {
     // put message in the mailbox
     mb.offer(msg); 
     async(); 
+    return this;
 }
 ```
 
@@ -858,63 +848,10 @@ In order to be schedulable, the actor must be a `Runnable`, so here is the `run(
 
 ## Wrapping Up
 
-In this long blog post we introduced actors as a running example to showcase some of the best
-features of Java 17. One major feature has been left out, though; **sealed type hierarchies**.
-
-If you recall, in [Behaviors and Effects](behaviors-and-effects) we noticed that we could 
-use a specific type of message instead of `Object`:
-
-```java
-interface Message {}
-interface Behavior {
-    Effect receive(Message message);
-}
-```
-
-But that would make our entire actor runtime tied to a built-in type
-of message. Not a huge deal, but still a limitation.
-
-Later, in the [Ping Pong Example](#example-2-ping-pong) we mentioned that we had
-to always handle the default case because the signature of `tell()` is:
+!!!! TODO: add notes on initialization!!
 
 
-```java
-interface Address { Address tell(Object msg); }
-```
 
-That would not be much better if the signature were:
-
-```java
-interface Address { Address tell(Message msg); }
-```
-
-For now, this was the best we could do. However, even 
-[Akka now has evolved and it implements *Typed* Actors][typed-akka].
-of an actor is actually typed, allowing us to match against **sealed hierarchies** of types.
-In Typed Actors, the *Behavior* and the *Address* of an actor are *typed*; i.e., 
-they specify the type of objects that they accept.
-
-This allows you to match against **sealed hierarchies** of types,
-and even avoid pattern matching entirely in some cases. 
-
-Next time, we will see how to write a tiny chat server with its corresponding client, and run it through JBang; but in the final post, I will publish a follow-up to this blog post with an **updated, typed version**  of this tiny actor runtime, where, instead of:
-
-```java
-interface Behavior extends Function<Object, Effect> {}
-interface Effect extends Function<Behavior, Behavior> {}
-interface Address { Address tell(Object msg); }
-```
-
-we will have:
-
-```java
-interface Behavior<T> extends Function<T, Effect<T>> {}
-interface Effect<T> extends Function<Behavior<T>, Behavior<T>> {}
-interface Address<T> { Address<T> tell(T msg); }
-```
-
-and we will learn what changes will be needed to adjust for that change.
-In the meantime, you can try it for yourself!
 
 
 ## Acknowledgements
