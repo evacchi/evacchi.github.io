@@ -2,21 +2,50 @@
 title:  'Write You A Typed Actor Runtime For Great Good! (with Java 17, records, switch expressions and JBang)'
 subtitle: ''
 categories: [Java, Records, JBang]
-date:   2021-10-12
+date:   2021-11-18
 ---
 
-The festive season is that period of the year when you are tempted to indulge in so many sweet, sugary treats. Personally, as an Italian, I do love me some [panettone][panettone]. And as much as I enjoy the bitter taste of coffee, I have been enjoying the sugar that the recent versions of Java have been introducing. I believe that Java 17 really hits the sweet spot, when it comes to treats. So what better time of the year to indulge in Java's sweet, sweet sugar than this December?
+The festive season is that period of the year when they tempt you to indulge in those dear sweet, sugary treats. 
 
-In the last couple of months [I have published a blog series][first-part] with my take on [Viktor Klang][klang]'s original [tiny Java][actorjava] and [Scala][minscalaactors] tiny actor system, updated for Java 17.
+<div style="float:right">
+<img src="/assets/actor-3/shakespeare.png" alt="Whimsical sketch of Shakespeare" />
+</div>
 
-Untyped actors in the style of [Akka Classic][akka-classic] used to be clunky to write in Java, because Java used to lack some key Java goodies: 
+Personally, as an Italian, I do love me some [panettone][panettone]. And as much as I enjoy the bitter taste of Java coffee, I have been enjoying the sugar that has been introduced in the most recent versions. Indeed, I believe that Java 17 really hits the sweet spot, when it comes to treats. So what better time of the year to indulge in Java's sweet, sweet sugar than this December?
+
+In the last couple of months [I have published a blog series][first-part] with my take on [Viktor Klang][klang]'s original [tiny Java][actorjava] and [Scala][minscalaactors] actor system, updated for Java 17.
+
+Untyped actors in the style of [Akka Classic][akka-classic] used to be clunky to write in Java, because Java used to lack some key goodies: 
 
 1. a concise way to express messages; but now we have **records**
 2. a tidy syntax to match against the types of the incoming messages; but now we have **switch expressions** and **pattern matching**  
 
-In my [previous blog posts][first-part] I have detailed how to develop an actor runtime for *untyped actors*; that is, actors that can accept *any kind of message*. In this part we are rewriting that actor runtime from scratch and implement a **typed actor runtime**! 
+Another key addition is **sealed type hiearchies**. If you are able to express the upper bound of your type hierarchy, and such a type hierarchy is "sealed", then the compiler will tell you if you are missing a `case` in a `switch` expression (*exhaustiveness check*).
 
-By leveraging *another* new feature in the Java 17 release (**sealed type hiearchies**) we can further improve the definition of the behavior of our actors with **exhaustiveness checks**: the *switch expression* will let us know if we are missing some `case` clauses, greatly reducing the chances for mistakes!
+For instance:
+
+```java
+sealed interface A {
+    record X() implements A{} 
+    record Y() implements A{}
+
+    static void f(A a) {
+        switch (a) {
+            case X x -> {}
+        }
+    }
+}
+```
+
+If you put this in `A.java` and run it with `java --enable-preview --source 17 A.java` you'll read:
+
+```
+A.java:6: error: the switch statement does not cover all possible input values
+        switch (a) {
+        ^
+```
+
+In my [previous blog posts][first-part] I have detailed how to develop an actor runtime for *untyped actors*; that is, actors that can accept *any kind of message*. In this part we are rewriting that actor runtime from scratch and implement a **typed actor runtime**, and we will see how sealed type hierarchies can improve the code we write!
 
 
 1. [JEP-330 and JBang](#jep-330-and-jbang)
@@ -29,7 +58,7 @@ By leveraging *another* new feature in the Java 17 release (**sealed type hiearc
 3. [Implementing The Actor System](#implementing-the-actor-system)
 4. [Wrapping Up](#wrapping-up)
 
-And before we start, here is the full listing to whet your appetite. You can also find it [at this repository][minjavaactors-typed]:
+This is the full listing of our typed actor runtime. You can also find it [at this repository][minjavaactors-typed]:
 
 ```java
 package io.github.evacchi;
@@ -43,8 +72,8 @@ public interface Actor {
     interface Effect<T> extends Function<Behavior<T>, Behavior<T>> {}
     interface Behavior<T> extends Function<T, Effect<T>> {}
     interface Address<T> { void tell(T msg); }
-    static <T> Effect<T> Become(Behavior<T> like) { return old -> like; }
-    static <T> Effect<T> Stay() { return old -> old; }
+    static <T> Effect<T> Become(Behavior<T> next) { return current -> next; }
+    static <T> Effect<T> Stay() { return current -> current; }
     static <T> Effect<T> Die() { return Become(msg -> { out.println("Dropping msg [" + msg + "] due to severe case of death."); return Stay(); }); }
     record System(Executor executor) {
         public <T> Address<T> actorOf(Function<Address<T>, Behavior<T>> initial) {
@@ -77,155 +106,75 @@ public interface Actor {
 ```
 {: style="font-size: small"}
 
-We will go through each line and learn what it is doing, and try the code along the way with the help of some examples. But first, let us set up our development environment.
-
-## A Bit of Boilerplate
-
-You may have noticed that our tiny actor runtime is all defined within an `Actor` interface:
-
-```java
-public interface Actor {
-```
-
-This may look like a bizarre choice: why not `class` ?
-
-As you know, a Java **public type declaration** (i.e. `class`, `record` `enum` or `interface`) 
-must be usually declared in its own separate file. 
-
-If you declare your types as package-private (i.e. you don't specify an explicit visibility modifier) 
-then you can write as many as you want in the same compilation unit. For instance:
-
-```java
-// SomeName.java
-class A {}
-class B {}
-interface C {}
-```
-
-The downside is that you cannot declare top-level **static fields**. 
-Fields must always belong to a container. And besides... they are not *public*, which may or may not
-be what you want.
-
-The usual trick is to *nest* type declarations into the body of another 
-type declaration, usually a `class`, and declare the *nested items* 
-as `public`; this of course allows you to have fields:
-
-```java
-public class Actor {
-    public static class B {}
-    public final static String Foo = ""; 
-}
-```
-
-You will have to write `static` in most cases: a non-static class captures the outer container
-which in our case will not be what we want. So this is still quite verbose.
-
-A lesser-known fact is that `interface` definitions allow public members 
-other than instance methods; the defaults for such members are different than those for classes
-and they allow you to omit a lot of keywords:
-
-- every field in an interface is `public` `static` `final`, 
-- every `class`, `interface`, `record` or `enum` is `public` `static`
-- every `static` method is also `public`
-
-Thus you can write:
-
-```java
-public interface Actor {
-    class B {}       // this is public static
-    static void f(); // this is public static 
-    String Foo = ""; // this is public static final
-}
-```
-
-In the following, we will assume that all the code is nested in `public interface Actor {}`
-
+In the following, we will go through each line and learn what it is doing, and try the code along the way.
 
 ## The Actor Model
 
-I am going to lift the definition from [Wikipedia][wiki-actor]:
+The Actor Model is a *concurrency model* where the unit of execution is called *an actor*. An actor *receives messages*.
+In response to a message, an actor may (e.g. cf. [Wikipedia][wiki-actor]):
 
-> An actor is a computational entity that, in response to a message it receives, can 
-> concurrently:
->
-> 1. send a finite number of messages to other actors;
-> 2. create a finite number of new actors;
-> 3. designate the behavior to be used for the next message it receives.
+- send a message to another actor
+- create new actors
+- transition to a new state, with a different *behavior*, to handle the next message 
 
 ### Behaviors and Effects
 
-Implementation-wise, the behavior of an actor is a function that consumes a message
-and returns the "next". In the body of this function, the actor usually
-sends messages to the addresses of other actors. It can also choose to 
-spawn new actors.
+The *behavior* of an actor is just a *function* that, applied to a message,
+returns another behavior.
+
+Actors usually encapsulate *state*; thus, as a side-effect, the *behavior*
+function usually updates the state of the actor; it may send other messages
+to other actors, and creates new actors to handle new state.
 
 For instance, consider the case of an HTTP request to initiate
-a long computation. You may have an actor that receives a message and acknowledges the sender; then it may create the actor to process the request.
+a long computation. You may have an actor that receives a message and acknowledges the sender; 
+then it may create the actor to process the request.
 The long computation will start and run asynchronously in the background, while
 the response will float back to the sender.
 
-
-
 <div>
-<img src="/assets/actor/diag-spawn.png" alt="Diagram of an HTTP request actor" />
+<img src="/assets/actor-3/diag-spawn.png" alt="Diagram of an HTTP request actor" />
 </div>
 
 
-At its core, an actor is just a routine with a message queue. 
-Instead of being evaluated synchronously, the routine is "posted" a message. 
-The message stays in such a message queue (called sometimes a mailbox),
-until the actor is woken up by the runtime. When the actor is awake, then
-the runtime picks a message from the top of the mailbox and dispatches it
-to the routine (i.e. it invokes that routine with that message).
+At its core, an actor is just a routine paired with a message queue. 
+But instead of being invoked directly, when a message is sent, 
+the system submits that message to the queue of the receiver.
+Then, at some point, the system will "wake up" that actor, taking
+one message from the queue, and applying the routine to that message. 
+The routine returns a description of the *next state* of the actor; 
+i.e. the behavior that should be called when a new message is evaluated. 
 
-The routine is always of the form:
+Such a routine is called a *behavior*, and in code, the `Behavior` can be defined 
+as a function that takes a message of some type, and it returns a *transition*
+between states that we call an `Effect`:
+ 
 
 ```java
 Function<Object, Effect> // Behavior
 ```
 
-In other words, the `Behavior` of an actor is to receive a message of some type
-and then return an `Effect`. We can send any type of object so we just use
-`Object`. An `Effect` would be a way to describe a *transition* between two 
-states of the actor.
 
-It can be represented as a *function* that takes the current `Behavior` and 
+An `Effect` would be a way to describe a *transition* between two 
+states of the actor. It can be represented as a *function* that takes the current `Behavior` and 
 returns the next `Behavior`:
 
 ```java
 Function<Behavior, Behavior> {}
 ```
 
-We can name the `Behavior` and `Effect` functions by "aliasing" them:
+
+Now, we want to our actor to be *typed*. Thus, a `Function<Object, Effect>`
+is not the best way to express it; in fact, that would mean that an actor
+may receive *any* type of objects; instead what we really want is to *tie*
+an actor to a *specific* type `T`.
+
+Thus, we want something like `Function<T, Effect>`; more specifically, 
+we may define it as:
 
 ```java
-interface Behavior extends Function<Object, Effect> {}
-interface Effect extends Function<Behavior, Behavior> {}
-```
-
-
-///// NOW... T etc....
-
-Extending a class to rename it is pretty typical in a Java context.
-Other languages, such as Scala provides facilities to give a synonym
-to a type, an "alias" (`typedef` if you like C).
-
-Even though extending an interface, in general, is not the same as aliasing,
-in the case of functional interfaces, it is kind of close,
-because you can always convert between different types if the signatures
-match (it is a form of "structural" typing if you will.)
-
-```java
-Function<Object, Effect> f = x -> ...; // not a Behavior
-Behavior = f::apply; // ooh, that's a Behavior!  
-```
-
-In fact, you could also define `Behavior` explicitly:
-
-```java
-interface Behavior {
-    Effect receive(Object message);
-}
+interface Behavior<T> extends Function<T, Effect<T>> {}
+interface Effect<T> extends Function<Behavior<T>, Behavior<T>> {}
 ```
 
 The most basic `Effect`s (state transitions) are `Stay` and `Die`:
@@ -239,32 +188,21 @@ it will drop and ignore all subsequent messages and/or
 the system may decide to collect it and throw it away.
 
 ```java
-Effect receiveThenDie(msg) {
+Effect<String> receiveThenDie(String msg) {
     out.println("Got msg " + msg);
-    return Actor.Die;
+    return Actor.Die();
 } 
 ```
 
 or written differently:
 
 ```java
-Behavior receiveThenDie = (msg) -> {
+Behavior<String> receiveThenDie = msg -> {
     out.println("Got msg " + msg);
-    return Actor.Die;
+    return Actor.Die();
 };
 ```
 
-One last final note on the definition of `Behavior`. 
-We could be more specific and always expect a message of a particular subtype, e.g:
-
-```java
-interface Message {}
-interface Behavior {
-    Effect receive(Message message);
-}
-```
-
-But we will keep it simple for now.
 
 ### Example 1: A Hello World
 
@@ -282,16 +220,16 @@ You will recognize the behavior `receiveThenDie` that we defined above.
 // create an actor runtime (an actor "system")
 Actor.System actorSystem = new Actor.System(Executors.newCachedThreadPool());
 // create an actor
-Address actor = actorSystem.actorOf(self -> msg -> {
+Address<String> actor = actorSystem.actorOf(self -> (String msg) -> {
     out.println("self: " + self + " got msg " + msg);
-    return Actor.Die;
+    return Actor.Die();
 });
 ```
 
 The `actorOf` method returns an `Address` which is defined as follows:
 
 ```java
-interface Address { Address tell(Object msg); }
+interface Address<T> { Address<T> tell(T msg); }
 ```
 
 allowing us to write:
@@ -319,9 +257,9 @@ because the `"bar"` message was sent to a dead actor.
 If we change the lambda to return `stay` instead:
 
 ```java
-var actor = actorSystem.actorOf(self -> msg -> {
+var actor = actorSystem.actorOf(self -> (String msg) -> {
     out.println("self: " + self + " got msg " + msg);
-    return Actor.Stay;
+    return Actor.Stay();
 });
 ```
 
@@ -335,7 +273,7 @@ self: io.github.evacchi.Actor$System$1@146b69a3 got msg bar
 `Stay` can be defined as such:
 
 ```java
-static Effect Stay = current -> current;  
+static <T> Effect<T> Stay() { return current -> current; }
 ```
 
 that is, a transition from the current behavior to the current behavior (i.e. it *stays*
@@ -344,24 +282,37 @@ in the same state.)
 `Die` is defined as:
 
 ```java
-static Effect Die = Become(msg -> {
-    out.println("Dropping msg [" + msg + "] due to severe case of death.");
-    return Stay; 
-});
+static <T> Effect<T> Die() { 
+    return Become(msg -> {
+        out.println("Dropping msg [" + msg + "] due to severe case of death."); 
+        return Stay(); 
+    }); 
+}
 ```
 
 where `Become` is:
 
 ```java
-static Effect Become(Behavior next) { return current -> next; }
+static Effect<T> Become(Behavior<T> next) { return current -> next; }
 ```
 
-i.e. `Become` is a method (despite the odd casing, for consistency with `Stay` and `Die`), that,
-given a `Behavior` returns an *effect*. And that effect is taking the `current` behavior 
-and returning the `next` one.
+i.e. `Become` is a method, that, given a `Behavior` returns an *effect*. 
+And that effect is taking the `current` behavior and returning the `next` one.
 
 Thus, `Die` is just an effect that takes the `prev` behavior and returns the behavior to drop
 all messages, and then `Stay`s in that state.
+
+
+With the exception of `Become`, which takes a parameter (`next`), you may be wondering
+why `Stay` and `Die` could not just be constant fields:
+
+```java
+static Effect<T> Stay =  return current -> current; 
+```
+
+If you are familiar with the [untyped version][first-part] we, you'll remember that's how
+we did it at that time. However, the key here is that little `<T>` up there. We have to use
+a method to let the compiler infer the `T`.
 
 You may also be wondering about that little `self` up there.
 `self` is a self-reference to the actor. It serves the same purpose as `this` in a class.
@@ -386,7 +337,7 @@ Let us now make it more interesting, and only accept *some* types.
 This is where pattern matching and records come in handy.
 
 <div style="float:right">
-<img src="/assets/actor/pingpong.jpg" alt="A drawing of two ping-pong rackets" />
+<img src="/assets/actor-3/pingpong.jpg" alt="A drawing of two ping-pong rackets" />
 </div>
 
 An actor routine usually matches a pattern against the incoming message.
@@ -407,28 +358,33 @@ In order to make this more interesting (and also not to loop indefinitely):
 
 First, we define the `Ping`, `Pong` messages, with the `Address` of the sender.
 
+
 ```java
-record Ping(Address sender) {}
-record Pong(Address sender) {}
+sealed interface TPong { Address<Ping> sender(); }
+```
+
+```java
+static record Ping(Address<TPong> sender) {}
+static record Pong(Address<Ping> sender) implements TPong {}
 ```
 
 We also define the `DeadlyPong` variant for `Pong`. This will be sent to the `ponger` 
 when the `pinger` is about to shut off.  
 
 ```java
-record DeadlyPong(Address sender) {}
+static record DeadlyPong(Address<Ping> sender) implements TPong {}
 ```
 
 ```java
 void run() {
     var actorSystem = new Actor.System(Executors.newCachedThreadPool());
-    var ponger = actorSystem.actorOf(self -> msg -> pongerBehavior(self, msg, 0));
-    var pinger = actorSystem.actorOf(self -> msg -> pingerBehavior(self, msg));
+    var ponger = actorSystem.actorOf(StatefulPonger::new);
+    var pinger = actorSystem.actorOf((Address<TPong> self) -> (TPong msg) -> pingerBehavior(self, msg));
     ponger.tell(new Ping(pinger));
 }
-Effect pongerBehavior(Address self, Object msg, int counter) {
-    return switch (msg) {
-        case Ping p && counter < 10 -> {
+    Effect<Ping> pongerBehavior(Address<Ping> self, Ping msg, int counter) {
+        return switch (msg) {
+            case Ping p && counter < 10 -> {
             out.println("ping! 👉");
             p.sender().tell(new Pong(self));
             yield Become(m -> pongerBehavior(self, m, counter + 1));
@@ -436,24 +392,22 @@ Effect pongerBehavior(Address self, Object msg, int counter) {
         case Ping p -> {
             out.println("ping! 💀");
             p.sender().tell(new DeadlyPong(self));
-            yield Die;
+            yield Die();
         }
-        default -> Stay;
     };
 }
-Effect pingerBehavior(Address self, Object msg) {
+Effect<TPong> pingerBehavior(Address<TPong> self, TPong msg) {
     return switch (msg) {
         case Pong p -> {
             out.println("pong! 👈");
             p.sender().tell(new Ping(self));
-            yield Stay;
+            yield Stay();
         }
         case DeadlyPong p -> {
             out.println("pong! 😵");
             p.sender().tell(new Ping(self));
-            yield Die;
+            yield Die();
         }
-        default -> Stay;
     };
 }
 ```
@@ -534,7 +488,7 @@ void run() {
     var ponger = actorSystem.actorOf(self -> msg -> pongerBehavior(self, msg, 0));
     ...
 }
-Effect pongerBehavior(Address self, Object msg, int counter) {
+Effect pongerBehavior(Address self, Ping msg, int counter) {
     return switch (msg) {
         case Ping p && counter < 10 -> {
             ...
@@ -555,23 +509,22 @@ void run() {
     var ponger = actorSystem.actorOf(StatefulPonger::new);
     ...
 }
-class StatefulPonger implements Behavior {
-    Address self; int counter = 0;
-    StatefulPonger(Address self) { this.self = self; }
-    public Effect apply(Object msg) {
+class StatefulPonger implements Behavior<Ping> {
+    Address<Ping> self; int counter = 0;
+    StatefulPonger(Address<Ping> self) { this.self = self; }
+    public Effect<Ping> apply(Ping msg) {
         return switch (msg) {
             case Ping p && counter < 10 -> {
                 out.println("ping! 👉");
                 p.sender().tell(new Pong(self));
                 this.counter++;
-                yield Stay;
+                yield Stay();
             }
             case Ping p -> {
                 out.println("ping! 💀");
                 p.sender().tell(new DeadlyPong(self));
-                yield Die;
+                yield Die();
             }
-            default -> Stay;
         };
     }
 }
@@ -587,7 +540,7 @@ class StatefulPonger implements Behavior {
 > ```
 
 <div style="float:right">
-<img src="/assets/actor/vending.jpg" alt="A drawing of a vending machine" />
+<img src="/assets/actor-3/vending.jpg" alt="A drawing of a vending machine" />
 </div>
 
 In the previous example, we saw how we can use actors to maintain mutable state. 
@@ -603,13 +556,14 @@ to insert an amount of 100 before you can pick a choice. Then you can pick your 
 
 
 <div>
-<img src="/assets/actor/diag-vend.png" alt="Diagram of the state machine" />
+<img src="/assets/actor-3/diag-vend.png" alt="Diagram of the state machine" />
 </div>
 
 
 The messages will be:
 
 ```java
+sealed interface Vend {}
 record Coin(int amount){
     public Coin {
         if (amount < 1 && amount > 100)
@@ -621,16 +575,16 @@ record Choice(String product){}
 And the behavior will be:
 
 ```java
-Effect initial(Object message) {
+Effect<Vend> initial(Vend message) {
     return switch(message) {
         case Coin c -> {
             out.println("Received first coin: " + c.amount);
             yield Become(m -> waitCoin(m, c.amount()));
         }
-        default -> Stay; // ignore message, stay in this state
+        default -> Stay(); // ignore message, stay in this state
     };
 }
-Effect waitCoin(Object message, int counter) {
+Effect<Vend> waitCoin(Vend message, int counter) {
     return switch(message) {
         case Coin c && counter + c.amount() < 100 -> {
             var count = counter + c.amount();
@@ -643,19 +597,20 @@ Effect waitCoin(Object message, int counter) {
             var change = counter + c.amount() - 100;
             yield Become(m -> vend(m, change));
         }
-        default -> Stay; // ignore message, stay in this state
+        default -> Stay(); // ignore message, stay in this state
     };
 }
-Effect vend(Object message, int change) {
+Effect<Vend> vend(Vend message, int change) {
     return switch(message) {
         case Choice c -> {
             vendProduct(c.product());
             releaseChange(change);
             yield Become(this::initial);
         }
-        default -> Stay; // ignore message, stay in this state
+        default -> Stay(); // ignore message, stay in this state
     };
 }
+
 
 void vendProduct(String product) {
     out.println("VENDING: " + product);
@@ -670,7 +625,7 @@ This actor may be created by an actor system by passing the initial state:
 
 ```java
 var actorSystem = new Actor.System(Executors.newCachedThreadPool());
-var vendingMachine = actorSystem.actorOf(self -> msg -> initial(msg));
+var vendingMachine = actorSystem.actorOf((Address<Vend> self) -> (Vend msg) -> initial(msg));
 ```
 
 and then started with:
@@ -975,6 +930,7 @@ In the meantime, you can try it for yourself!
 [minscalaactors]: https://gist.github.com/viktorklang/2362563
 [akka-classic]: https://doc.akka.io/docs/akka/current/actors.html
 [typed-akka]: https://doc.akka.io/docs/akka/current/typed/actors.html#first-example
+[first-part]: https://evacchi.github.io/java/records/jbang/2021/10/12/learn-you-an-actor-system-java-17-switch-expressions.html
 [minjavaactors]: https://github.com/evacchi/min-java-actors/blob/main/src/main/java/io/github/evacchi/Actor.java
 [minjavaactors-typed]: https://gist.github.com/evacchi/b601498c3d8d483e3350f00b4c8aabf5
 [jdk17-released]: https://inside.java/2021/09/14/the-arrival-of-java17/
