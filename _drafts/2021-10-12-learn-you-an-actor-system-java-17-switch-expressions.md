@@ -586,92 +586,111 @@ class StatefulPonger implements Behavior<Ping> {
 <img src="/assets/actor-3/vending.jpg" alt="A drawing of a vending machine" />
 </div>
 
-In the previous example, we saw how we can use actors to maintain mutable state. 
+In the previous example, we saw how we to use actors and `Become` to maintain mutable state (the counter).
+In this example we will show how to use `Become` to change the behavior of an actor, realizing a *state machines.  
 
-But we also saw that when an actor receives a message it returns an `Effect`; that is, a *transition*
-to a different behavior. So far we only only used two built-in effects: `Stay` and `Die`. 
-But we can use the `Become` mechanism to change the behavior of our actors upon receiving a message. In other words, actors can be used to implement *state machines*.  
+A classic example of a state machine is the *vending machine*.
 
-A classic example of a state machine is the *vending machine*: a vending machine awaits for a specific amount of coins before it allows to pick a choice. Let us implement a simple vending machine using our actor runtime.
-
-Suppose that you are developing a vending machine that waits for you 
-to insert an amount of 100 before you can pick a choice. Then you can pick your choice and your item will be retrieved. For simplicity, we assume that each coin has a value between 1 and 100.
+For instance, we may write a vending machine that requires you 
+to insert an amount of 100 before you can choose an item. 
 
 
 <div>
 <img src="/assets/actor-3/diag-vend.png" alt="Diagram of the state machine" />
 </div>
 
+We will define two actors, `vendingMachine` and `itemPicker`, to simulate
+that, once the amount of 100 has been reached, and the customer has made their choice, 
+some subroutine will take care of the mechanical arm that selects the item
+and dispenses it to them.
 
-The messages will be:
+The messages:
 
 ```java
-sealed interface Vend {}
-static record Coin(int amount) implements Vend {
+interface VendMessage {}
+record Coin(int amount) implements VendMessage {
     public Coin {
         if (amount < 1 && amount > 100)
             throw new AssertionError("1 <= amount < 100");
     }
 }
-static record Choice(String product) implements Vend {}
+record Choice(String product) implements VendMessage {}
 ```
 
-And the behavior will be:
+we use the record constructor to ensure that the invariant that `1 <= amount < 100` is respected.
+
+There is also the message `Vended` that it is only for private communication between
+the `itemPicker` and the `vendingMachine`:
 
 ```java
-static Effect<Vend> initial(Vend message) {
-    return switch(message) {
-        case Coin c -> {
-            out.println("Received first coin: " + c.amount);
-            yield Become(m -> waitCoin(m, c.amount()));
-        }
-        default -> Stay(); // ignore message, stay in this state
+record Vended(String product) implements VendMessage {}
+```
+
+it is meant for the `itemPicker` to notify when it is done releasing the item, 
+and the `vendingMachine` may return to its `initial` state.
+
+```java
+TypedActor.System sys = new TypedActor.System(Executors.newCachedThreadPool());
+
+Address<VendMessage> vendingMachine = sys.actorOf(self -> initial(self));
+Address<Choice> itemPicker = sys.actorOf(self -> msg -> itemPicker(msg));
+```
+
+The behaviors may be defined as follows:
+
+```java
+Behavior<VendMessage> initial(Address<VendMessage> self) {
+    return message -> {
+        if (message instanceof Coin c) {
+            out.printf("Received first coin: %d\n", c.amount());
+            return Become(waitCoin(self, c.amount()));
+        } else return Stay(); // ignore message, stay in this state
     };
 }
-static Effect<Vend> waitCoin(Vend message, int counter) {
-    return switch(message) {
-        case Coin c && counter + c.amount() < 100 -> {
-            var count = counter + c.amount();
-            out.println("Received coin: " + count + " of 100");
-            yield Become(m -> waitCoin(m, count));
-        }
-        case Coin c -> {
-            var count = counter + c.amount();
-            out.println("Received last coin: " + count + " of 100");
-            var change = counter + c.amount() - 100;
-            yield Become(m -> vend(m, change));
-        }
-        default -> Stay(); // ignore message, stay in this state
+Behavior<VendMessage> waitCoin(Address<VendMessage> self, int accumulator) {
+    out.printf("Budget updated: %d\n", accumulator);
+    return m -> switch (m) {
+        case Coin c && accumulator + c.amount() < 100 ->
+                Become(waitCoin(self, accumulator + c.amount()));
+        case Coin c ->
+                Become(vend(self, accumulator + c.amount()));
+        default -> Stay();
     };
 }
-static  Effect<Vend> vend(Vend message, int change) {
-    return switch(message) {
+Behavior<VendMessage> vend(Address<VendMessage> self, int total) {
+    out.printf("Pick an Item! (Budget: %d)\n", total);
+    return message -> switch(message) {
         case Choice c -> {
-            vendProduct(c.product());
-            releaseChange(change);
-            yield Become(m -> initial(m));
+            itemPicker.tell(c);
+            releaseChange(total - 100);
+            yield Stay();
         }
+        case Vended v -> Become(initial(self));
         default -> Stay(); // ignore message, stay in this state
     };
 }
-
-static void vendProduct(String product) {
-    out.println("VENDING: " + product);
-}
-
-static  void releaseChange(int change) {
-    out.println("CHANGE: " + change);
-}
 ```
 
-This actor may be created by an actor system by passing the initial state:
+and the `itemPicker`:
+
 
 ```java
-var actorSystem = new Actor.System(Executors.newCachedThreadPool());
-var vendingMachine = actorSystem.actorOf((Address<Vend> self) -> (Vend msg) -> initial(msg));
+Effect<Choice> itemPicker(Choice message) {
+    vendProduct(message.product());
+    vendingMachine.tell(new Vended(message.product()));
+    return Stay();
+}
 ```
 
-and then started with:
+`vendProduct` and `releaseChange` are just printing a message,
+but we may imagine that they do something costly and complicated:
+
+```java
+void vendProduct(String product) { out.printf("VENDING: %s\n", product); }
+void releaseChange(int change) { out.printf("CHANGE: %s\n", %d); }
+```
+
+now, if we send a series of coins, and then our choice:
 
 ```java
 vendingMachine.tell(new Coin(50))
@@ -680,76 +699,29 @@ vendingMachine.tell(new Coin(50))
               .tell(new Choice("Chocolate"));
 ```
 
-It will print the following:
+We will read the following output:
 
 ```
 Received first coin: 50
-Received coin: 90 of 100
-Received last coin: 120 of 100
+Budget updated: 50
+Budget updated: 90
+Pick an Item! (Budget: 120)
 VENDING: Chocolate
 CHANGE: 20
 ```
 
+#### Use of Types
 
-If an action is costly (e.g. blocking), an actor may decide to spawn another actor
-to serve that action. For instance:
+Notice how we had to add a `default` clause in the `waitCoin` and `vend` states (the `initial` state had an `else` clause), 
+because, every behavior is of type `Behavior<VendMessage>`, which means we need to handle any message in the `VendMessage` hierarchy,
+even when that does not make sense in that state. For instance, a `Coin` message does not make sense in the `vend` state.
 
-```java
-record VendItem(String product) implements Vend {}
-record ReleaseChange(int amount) implements Vend {}
+However, the `itemPicker` has type `Address<Choice>` because that's the only type of message it will ever be able to receive.
+This allows use to avoid `if`s or `switch`es!
 
-static Effect<Vend> vend(Vend message, int change) {
-    return switch(message) {
-        case Choice c -> {
-            var vendActor = system.actorOf(self -> m -> vendProduct(m));
-            vendActor.tell(new VendItem(c.product()))
-            var releaseActor = system.actorOf(self -> m -> release(m));
-            releaseActor.tell(new ReleaseChange(change))
-            yield Become(m -> initial(m));
-        }
-        default -> Stay(); // ignore message, stay in this state
-        ...
-    }
-}
-Effect<Vend> vendItem(Vend message) {
-    return switch (message) {
-        case VendItem item -> {
-            // ... vend the item ...
-            yield Die() // we no longer need to stay alive.
-        }
-    }
-}
-Effect<Vend> release(Vend message, int change) {
-    return switch (message) {
-        case ReleaseChange c -> {
-            // ... release the amount ...
-            yield Die() // we no longer need to stay alive.
-        }
-    }
-}
-```
 ## Implementing The Actor System
 
-We are now ready to implement the actor system and execution environment.
-[The original `Scala` snippet][minscalaactors] does away with an `ActorSystem` object, because it leverages
-the `implicit` feature to inject an `Executor` automatically:
-
-```scala
-implicit val e: java.util.concurrent.Executor = java.util.concurrent.Executors.newCachedThreadPool
-// implicitly takes e as an Executor
-val actor = Actor( self => msg => { println("self: " + self + " got msg " + msg); Die } ) 
-```
-
-
-Although that is convenient we can achieve just the same result by creating a factory object
-(`TypedActor.System`) carrying the `ExecutorService` for us. The method `TypedActor#apply` is defined in Scala as follows:
-
-```scala
-def apply(initial: Address => Behavior)(implicit e: Executor): Address
-```
-
-that allows to create an actor with `TypedActor( self => msg => ... )`; can be substituted by a method
-`actorOf` of the `TypedActor.System` factory. 
+We are now ready to implement the actor system and execution environment. We define the `actorOf()` method on a `TypedActor.System` class. 
 
 ```java
 public interface TypedActor {
@@ -760,7 +732,7 @@ public interface TypedActor {
            // ... references the executor ...
         }
     }
-} 
+}
 ```
 
 However, in order to keep the number of lines down, we can abuse the `record` construct so that we 
@@ -774,46 +746,34 @@ record System(Executor executor) {
 }
 ```
 
+We now need to define an anonymous class implementing both the `Address<T>` and the `Runnable` interface:
 
-The original Scala code defines a private abstract class `AtomicRunnableAddress` .
-We picked `interface Actor` as the outer container. However `interface`s (currently) do not allow
-private class members. But the purpose of `AtomicRunnableAddress` is really to create an 
-anonymous class that implements two interfaces in the body of the `apply()` method:
-
-```scala
-private abstract class AtomicRunnableAddress extends Address with Runnable { val on = new AtomicInteger(0) }
-def apply(initial: Address => Behavior)(implicit e: Executor): Address =              
-  new AtomicRunnableAddress { // Memory visibility of "behavior" is guarded by "on" using volatile piggybacking
-```
-
-We can use another under-used feature of Java: local classes; i.e. a class that is local to the *body* of a method.
-So instead of:
-
-```java
-abstract class AtomicRunnableAddress<T> implements Address<T>, Runnable
-    { AtomicInteger on = new AtomicInteger(0); }
-record System(ExecutorService executorService) {
+```java    
+record System(Executor executor) {
     public <T> Address<T> actorOf(Function<Address<T>, Behavior<T>> initial) {
+        return new Address<T>, Runnable {
+            ...
+        }
+    }
 ```
 
-we write:
+however... that is not valid Java syntax!. What we can do instead, is leveraging another under-used feature of Java: 
+local classes; i.e. a class that is local to the *body* of a method:
 
 ```java
 record System(Executor executor) {
     public <T> Address<T> actorOf(Function<Address<T>, Behavior<T>> initial) {
         abstract class AtomicRunnableAddress<T> implements Address<T>, Runnable
             { AtomicInteger on = new AtomicInteger(0); }
+        return new AtomicRunnableAddress<>() {
+            ...
 ```
 
-which makes `AtomicRunnableAddress` private to that method (which is all we need).
-
-We will use the `AtomicInteger` to turn on and off the actor (note: we could probably use an `AtomicBoolean`, but 
-we are just following the original code).
-
-we now create our object:
+which makes `AtomicRunnableAddress` private to that method (which is all we need). We will use the 
+`AtomicInteger` to turn on and off the actor; we now create our object:
 
 ```java
-var addr = new AtomicRunnableAddress() {
+return new AtomicRunnableAddress() {
     // the mailbox is just a concurrent queue
     final ConcurrentLinkedQueue<T> mbox = new ConcurrentLinkedQueue<>();
     // current behavior is a mutable field.  
@@ -821,7 +781,6 @@ var addr = new AtomicRunnableAddress() {
     Behavior behavior = initial.apply(this);
   ...
 };
-addr.tell(addr); 
 ```
 
 Here is the reason why our actors are created with this strange curried function:
@@ -843,8 +802,8 @@ Address<T> -> T -> Effect<T>
 // self -> msg -> ...
 ```
 
-The reason why we write it this way is so that the `Function<T, Effect>` (i.e. the `Behavior`) 
-can reference `self`. As we saw in [Example 3: A Vending Machine](#example-3-a-vending-machine) this is often equivalent to writing a class
+The reason why we write it this way is so that the `Function<T, Effect<T>` (i.e. the `Behavior<T>`) 
+can reference `self`. As we saw in [Example 2: Ping Pong](#example-2-ping-pong) this is often equivalent to writing a class
 that takes an `Address<T>` in its constructor. And that is because ["a closure is a poor man’s object; an object is a poor man’s closure”][closures-objects].
 
 When the actor starts we initialize the `Behavior<T>` to a reference to `this`
@@ -897,20 +856,33 @@ In order to be schedulable, the actor must be a `Runnable`, so here is the `run(
 ```
 
 
-## Wrapping Up
+### Use of Types
 
-!!!! TODO: add notes on initialization!!
+In the [original version][first-part] we initialized the `self` address by `tell`ing the actor its own `Address`.
+This is doable in this version too, and it's preferrable, because it allows the `initial` behavior to be run
+asynchronously.
 
+In this version, for simplicity, we are initializing the `Behavior<T>` immediately:
 
+```java
+Behavior behavior = initial.apply(this);
+```
 
+However, that also means that, if `initial` performs a costly operation, it will be executed at creation time; while,
+in the original version][first-part], it would be evaluated when the first message (the `Address`) would be initially received,
+making it asynchronous.
 
+However, in its simplest implementation, this requires an untyped mailbox (i.e. `ConcurrentLinkedQueue<Object>`),
+which would then require nasty casts. Try developing your own version, limiting the amount of hacks!
 
-## Acknowledgements
+## Wrapping It Up
 
-- [Viktor Klang][klang] published the original snippet and reviewed a draft of this post
-- [Max Andersen](https://xam.dk) is the author of [JBang][jbang] and reviewed a draft of this post
-- I thook some inspiration from [Bob Nystrom's Crafting Interpreters](https://craftinginterpreters.com/) for the writing style of this tutorial
-- [Miran Lipovaca for the title of his Haskell book](http://learnyouahaskell.com/)
+I hope you liked this long blog post! Together we implemented a tiny typed actor system, and we saw how to realize a few smaller use cases.
+
+If you have read this far, congratulations! You deserve some [panettone][panettone] too!
+
+If you would like to challenge yourself, try [implementing a tiny chat system by following along the *untyped* version][second-part]! 
+
 
 [panettone]: https://en.wikipedia.org/wiki/Panettone
 [klang]: https://viktorklang.com/
@@ -919,6 +891,7 @@ In order to be schedulable, the actor must be a `Runnable`, so here is the `run(
 [akka-classic]: https://doc.akka.io/docs/akka/current/actors.html
 [typed-akka]: https://doc.akka.io/docs/akka/current/typed/actors.html#first-example
 [first-part]: https://evacchi.github.io/java/records/jbang/2021/10/12/learn-you-an-actor-system-java-17-switch-expressions.html
+[second-part]: https://evacchi.github.io/java/records/jbang/2021/11/16/write-you-a-chat-java-17-actor.html
 [minjavaactors]: https://github.com/evacchi/min-java-actors/blob/main/src/main/java/io/github/evacchi/Actor.java
 [minjavaactors-typed]: https://gist.github.com/evacchi/b601498c3d8d483e3350f00b4c8aabf5
 [jdk17-released]: https://inside.java/2021/09/14/the-arrival-of-java17/
