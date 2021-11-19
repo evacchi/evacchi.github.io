@@ -1,5 +1,5 @@
 ---
-title:  'Write You A Typed Actor Runtime For Great Good! (with Java 17, records, switch expressions and JBang)'
+title:  'Type You An Actor Runtime For Greater Good! (with Java 17, records, switch expressions and JBang)'
 subtitle: ''
 categories: [Java, Records, JBang]
 date:   2021-11-18
@@ -13,9 +13,9 @@ The festive season is that period of the year when they tempt you to indulge in 
 
 Personally, as an Italian, I do love me some [panettone][panettone]. And as much as I enjoy the bitter taste of Java coffee, I have been enjoying the sugar that has been introduced in the most recent versions. Indeed, I believe that Java 17 really hits the sweet spot, when it comes to treats. So what better time of the year to indulge in Java's sweet, sweet sugar than this December?
 
-In the last couple of months [I have published a blog series][first-part] with my take on [Viktor Klang][klang]'s original [tiny Java][actorjava] and [Scala][minscalaactors] actor system, updated for Java 17.
+In the last couple of months [I published a blog series][first-part] with my take on [Viktor Klang][klang]'s original [tiny Java][actorjava] and [Scala][minscalaactors] actor system, updated for Java 17.
 
-Untyped actors in the style of [Akka Classic][akka-classic] used to be clunky to write in Java, because Java used to lack some key goodies: 
+*Untyped* actors in the style of [Akka Classic][akka-classic] used to be clunky to write in Java, because Java used to lack some key goodies: 
 
 1. a concise way to express messages; but now we have **records**
 2. a tidy syntax to match against the types of the incoming messages; but now we have **switch expressions** and **pattern matching**  
@@ -47,15 +47,13 @@ A.java:6: error: the switch statement does not cover all possible input values
 
 In my [previous blog posts][first-part] I have detailed how to develop an actor runtime for *untyped actors*; that is, actors that can accept *any kind of message*. In this part we are rewriting that actor runtime from scratch and implement a **typed actor runtime**, and we will see how sealed type hierarchies can improve the code we write!
 
-
-1. [A Bit of Boilerplate](#a-bit-of-boilerplate)
-2. [The Actor Model](#the-actor-model)
+1. [The Actor Model](#the-actor-model)
   - [Behaviors and Effects](#behaviors-and-effects)
   - [Example 1: A Hello World](#example-1-a-hello-world)
   - [Example 2: Ping Pong](#example-2-ping-pong)
   - [Example 3: A Vending Machine](#example-3-a-vending-machine)
-3. [Implementing The Actor System](#implementing-the-actor-system)
-4. [Wrapping Up](#wrapping-up)
+2. [Implementing The Actor System](#implementing-the-actor-system)
+3. [Wrapping Up](#wrapping-up)
 
 This is the full listing of our typed actor runtime. You can also find it [at this repository][minjavaactors-typed]:
 
@@ -137,12 +135,13 @@ to process the request in the background.
 
 
 At its core, an actor is just a routine paired with a message queue. 
-But instead of being invoked directly, when a message is sent, 
-the system submits that message to the queue of the receiver.
-Then, at some point, the system will "wake up" that actor, taking
-one message from the queue, and applying the routine to that message. 
+But instead of evaluating the routine as soon as a message is sent, 
+the system submits a message to the queue of the receiver.
+Then, at some point, the system "wakes up" that actor: it takes
+one message from the queue, and it applies the routine to that message. 
+
 The routine returns a description of the *next state* of the actor; 
-i.e. the behavior that should be called when a new message is evaluated. 
+i.e. the routine that should be executed when a new message is evaluated. 
 
 Such a routine is called a *behavior*, and in code, the `Behavior` can be defined 
 as a function that takes a message of some type, and it returns a *transition*
@@ -163,7 +162,7 @@ that takes the current `Behavior` and returns the next `Behavior`:
 Effect : Behavior ⟶ Behavior
 ```
 
-In code, we may write it as:
+In code, we may write them as:
 
 ```java
 interface Behavior<T> extends Function<T, Effect<T>> {}
@@ -182,8 +181,8 @@ the system may decide to collect it and throw it away.
 
 ```java
 Effect<String> receiveThenDie(String msg) {
-    out.println("Got msg " + msg);
-    return Actor.Die();
+    out.println("Got msg: '" + msg + "'; length: " + msg.length());
+    return TypedActor.Die();
 } 
 ```
 
@@ -191,8 +190,8 @@ or written differently:
 
 ```java
 Behavior<String> receiveThenDie = msg -> {
-    out.println("Got msg " + msg);
-    return Actor.Die();
+    out.println("Got msg '" + msg + "'; length: " + msg.length());
+    return TypedActor.Die();
 };
 ```
 
@@ -202,7 +201,7 @@ Behavior<String> receiveThenDie = msg -> {
 > You can run the following example with:
 > 
 > ```sh
-> j! https://gist.github.com/evacchi/40b19b0e116f3ce8f635787e0be79c95
+> j! https://github.com/evacchi/min-java-actors/blob/fix-typed/src/main/java/io/github/evacchi/typed/examples/HelloWorld.java
 > ```
 
 In this example we will create an actor system, 
@@ -213,13 +212,13 @@ You will recognize the behavior `receiveThenDie` that we defined above.
 // create an actor runtime (an actor "system")
 var actorSystem = new Actor.System(Executors.newCachedThreadPool());
 // create an actor
-var actor = actorSystem.actorOf(self -> msg -> {
-    out.println("self: " + self + " got msg " + msg);
+Address<String> actor = actorSystem.actorOf(self -> msg -> {
+    out.println("self: " + self +"; got msg: '" + msg + "'; length: " + msg.length());
     return Actor.Die();
 });
 ```
 
-The `actorOf` method returns an `Address` which is defined as follows:
+The `actorOf` method returns an `Address<T>` which is defined as follows:
 
 ```java
 interface Address<T> { Address<T> tell(T msg); }
@@ -241,8 +240,8 @@ actor.tell("foo").tell("bar");
 which, when executed, prints the following:
 
 ```
-self: io.github.evacchi.Actor$System$1@198a98aa got msg foo
-Dropping msg [bar] due to severe case of death.
+self: io.github.evacchi.TypedActor$System$1@24a95c2e; got msg 'foo'; length, 3
+Dropping msg [foo] due to severe case of death.
 ```
 
 because the `"bar"` message was sent to a dead actor.
@@ -250,20 +249,20 @@ because the `"bar"` message was sent to a dead actor.
 If we change the lambda to return `stay` instead:
 
 ```java
-var actor = actorSystem.actorOf(self -> msg -> {
-    out.println("self: " + self + " got msg " + msg);
-    return Actor.Stay();
+Address<String> actor = actorSystem.actorOf(self -> msg -> {
+    out.println("self: " + self +"; got msg: '" + msg + "'; length: " + msg.length());
+    return Stay();
 });
 ```
 
 then the output would read:
 
-```java
-self: io.github.evacchi.Actor$System$1@146b69a3 got msg foo
-self: io.github.evacchi.Actor$System$1@146b69a3 got msg bar
+```
+self: io.github.evacchi.TypedActor$System$1@7519a17c; got msg: 'foo'; length: 3
+self: io.github.evacchi.TypedActor$System$1@7519a17c; got msg: 'bar'; length: 3
 ```
 
-`Stay` can be defined as such:
+You may define `Stay` as:
 
 ```java
 static <T> Effect<T> Stay() { return current -> current; }
@@ -302,11 +301,7 @@ why `Stay` and `Die` are not constant fields:
 static Effect<T> Stay =  return current -> current; 
 ```
 
-If you are familiar with the [untyped version][first-part], you'll remember that's how
-we did it at that time. However, the key here is that little `<T>` up there. We have to use
-a method to let the compiler infer the `T`.
-
-You may also be wondering about that little `self` up there.
+You may be wondering what `self` is.
 `self` is a self-reference to the actor. It serves the same purpose as `this` in a class.
 Because the behavior  is written as a function, we need to "seed" a reference to
 `this` into the function. But there is no `this` until
@@ -315,29 +310,86 @@ we provide it in the closure, so that it may be filled lazily.
 
 If this is not too clear, don't worry for now; we'll get to that later.
 
+#### Use of Types
+
+If you are familiar with the [untyped version][first-part], you'll remember that's how
+we did it at that time. However, the key here is that little `<T>` up there. We have to use
+a method to let the compiler infer the `T`.
+
+Notice how that little `T` in the definition of `Behavior`
+makes a huge difference: [an *untyped* actor system][first-part] would be defined as:
+
+```java
+interface Behavior extends Function<Object, Effect> {}
+interface Effect extends Function<Behavior, Behavior> {}
+interface Address { Address tell(Object message); }
+```
+
+So the actor itself would be written:
+
+```java
+Address actor = actorSystem.actorOf(self -> msg -> {
+    out.println("self: " + self +"; got msg: '" + msg + "'; length: " + msg.length());
+    return Actor.Die();
+};
+```
+
+This would not compile, because `msg` has now type `Object` and `length()` is
+no longer a known method:
+
+```
+  error: cannot find symbol
+            out.println("self: " + self +"; got msg '" + msg + "'; length: " + msg.length());
+                                                                                  ^
+  symbol:   method length()
+  location: variable msg of type Object
+```
+
+unless you check its type:
+
+```java
+Behavior receiveThenDie = msg -> {
+    if (msg instanceof String) {
+        var s = (String) msg;
+        out.println("self: " + self +"; got msg: '" + s + "'; length: " + s.length());
+    } else {
+        // handle the non-String message
+    }
+    return Actor.Die();
+};
+```
+
+or, more concisely:
+
+```java
+    if (msg instanceof String s) {
+        out.println("self: " + self +"; got msg: '" + s + "'; length: " + s.length());
+    ...
+```
+
+The concise version uses Pattern Matching for `instanceof`, delivered in JDK 14 ([JEP-305][jep305]).
+It allows you to check against a type, and get a typed variable out of it if the check passes, all in one line.
+
 
 ### Example 2: Ping Pong
 
 > You can run the following example with:
 > 
 > ```sh
-> j! https://gist.github.com/evacchi/97909cd131b8c358341b51463a40da04
+> j! https://github.com/evacchi/min-java-actors/blob/fix-typed/src/main/java/io/github/evacchi/typed/examples/PingPong.java
 > ```
 
-In the previous example, the actor was consuming messages of *any* type (`Object`). 
-Let us now make it more interesting, and only accept *some* types. 
-This is where pattern matching and records come in handy.
+An actor routine usually accepts more than one type of messages. It is therefore
+useful to match against all the accepted subtypes.
+
+This is where [`switch` expressions][jep361],
+[records][jep395] and [sealed types][jep409] are useful.
 
 <div style="float:right">
 <img src="/assets/actor-3/pingpong.jpg" alt="A drawing of two ping-pong rackets" />
 </div>
 
-An actor routine usually matches a pattern against the incoming message.
-In Java versions before 17, `switch` expression and pattern matching
-support was experimental; in general, they are very recent additions 
-([JEP-305][jep305] and [JEP-361][jep361] both delivered in JDK 14).
-
-In a classic example actor example, one actor sends a "ping" to another;
+In a classic actor example, one actor sends a "ping" to another;
 the second replies with a "pong", and they go on back and forth.
 
 In order to make this more interesting (and also not to loop indefinitely):
@@ -348,49 +400,55 @@ In order to make this more interesting (and also not to loop indefinitely):
 - the `pinger` receives `Ping` and replies with `Pong`
 - when it receives a `DeadlyPong` it `Die`s.
 
-First, we define the `Ping`, `Pong` messages, with the `Address` of the sender.
+In the [untyped version][first-part] of this program, the messages do not need to be 
+defined in a hierarchy. But in the typed version, a tiny hierarchy of sealed records
+will make the code shorter.
 
+There is only one type of `Ping`:
 
 ```java
-sealed interface TPong { Address<Ping> sender(); }
+record Ping(Address<Pong> sender) {}
 ```
 
+the *sender* of such messages is able to receive `Pong`s. Now, we said that there
+are two types of `Pong`s:
+
 ```java
-static record Ping(Address<TPong> sender) {}
-static record Pong(Address<Ping> sender) implements TPong {}
+record SimplePong(Address<Ping> sender) 
+record DeadlyPong(Address<Ping> sender) 
 ```
 
-We also define the `DeadlyPong` variant for `Pong`. This will be sent to the `ponger` 
-when the `pinger` is about to shut off.  
+And they are in the same hierarchy, so let us define the interface `Pong`:
 
 ```java
-static record DeadlyPong(Address<Ping> sender) implements TPong {}
+interface Pong {}
+record SimplePong(Address<Ping> sender) implements Pong {}
+record DeadlyPong(Address<Ping> sender) implements Pong {}
 ```
 
+Both messages are *sent* by the actor that is able to *receive* `Ping`s.
+
 ```java
-void run() {
-    var actorSystem = new Actor.System(Executors.newCachedThreadPool());
-    var ponger = actorSystem.actorOf(StatefulPonger::new);
-    var pinger = actorSystem.actorOf((Address<TPong> self) -> (TPong msg) -> pingerBehavior(self, msg));
+void static void main(String... args) {
+    var actorSystem = new TypedActor.System(Executors.newCachedThreadPool());
+    Address<Ping> ponger = actorSystem.actorOf(self -> msg -> pongerBehavior(self, msg, 0));
+    Address<Pong> pinger = actorSystem.actorOf(self -> msg -> pingerBehavior(self, msg));
     ponger.tell(new Ping(pinger));
 }
-    Effect<Ping> pongerBehavior(Address<Ping> self, Ping msg, int counter) {
-        return switch (msg) {
-            case Ping p && counter < 10 -> {
-            out.println("ping! 👉");
-            p.sender().tell(new Pong(self));
-            yield Become(m -> pongerBehavior(self, m, counter + 1));
-        }
-        case Ping p -> {
-            out.println("ping! 💀");
-            p.sender().tell(new DeadlyPong(self));
-            yield Die();
-        }
-    };
+static Effect<Ping> pongerBehavior(Address<Ping> self, Ping msg, int counter) {
+    if (counter < 10) {
+        out.println("ping! 👉");
+        msg.sender().tell(new SimplePong(self));
+        return Become(m -> pongerBehavior(self, m, counter + 1));
+    } else {
+        out.println("ping! 💀");
+        msg.sender().tell(new DeadlyPong(self));
+        return Die();
+    }
 }
-Effect<TPong> pingerBehavior(Address<TPong> self, TPong msg) {
+static Effect<Pong> pingerBehavior(Address<Pong> self, Pong msg) {
     return switch (msg) {
-        case Pong p -> {
+        case SimplePong p -> {
             out.println("pong! 👈");
             p.sender().tell(new Ping(self));
             yield Stay();
@@ -429,58 +487,54 @@ ping! 👉
 pong! 👈
 ping! 💀
 pong! 😵
-Dropping msg [Ping[sender=io.github.evacchi.Actor$System$1@3b9c1475]] due to severe case of death.
+Dropping msg [Ping[sender=io.github.evacchi.TypedActor$System$1@21198648]] due to severe case of death.
 ```
 
-the line:
+#### Use of Types
+
+If you are familiar with the [untyped version][first-part], you'll remember that the `pingerBehavior` needed
+a `default` clause: that's because, as we learned previously, the signature for `Behavior` was
+`Function<Object,Effect>`: we had to handle and *ignore* messages that were not `Pong`s!
+
+Because the signature is now effectively `Function<Pong, Effect<Pong>>`
+the compiler *knows* that only messages from the `Pong` hierarchy may be received; 
+thus, we don't need to add a `default` clause!
+
+Likewise `pongerBehavior` defined a `switch` expression too. In the typed version, 
+however, the `switch` is made entirely redundant:
 
 ```java
-        case Ping p && counter < 10 -> {
-```
-
-is a "guarded pattern", that is, a pattern with a guard (a boolean expression). The expression may be 
-on any variable or field that is in scope including the matched value (`p` in this case). This is still
-a preview feature, so it requires the `--enable-preview` flag.
-
-#### Ignored Messages
-
-You may have noticed that all our switches have a `default` case. This is because 
-any type of message is allowed; in fact, recall the `Address` interface and the signature of `tell()`:
-
-```java
-interface Address { Address tell(Object msg); }
-```
-
-If we send an object of a type that is not handled, it will just be silently swallowed:
-
-```java
-    ponger.tell("Hey hello"); // prints nothing
-```
-
-In order to keep these examples simple we just ignored the message;
-you may want to add some logging to the `default` case, instead:
-
-```java
+static Effect<Ping> pongerBehavior(Address<Ping> self, Ping msg, int counter) {
     return switch (msg) {
-        case ...
-        default -> {
-            out.println("Ignoring unknown message: " + msg);
-            yield Stay;
+        case Ping p && counter < 10 -> {
+            out.println("ping! 👉");
+            p.sender().tell(new SimplePong(self));
+            yield Become(m -> pongerBehavior(self, m, counter + 1));
+        }
+        case Ping p -> {
+            out.println("ping! 💀");
+            p.sender().tell(new DeadlyPong(self));
+            yield Die();
         }
     };
+}
 ```
+
+because the signature is `Function<Ping, Effect<Ping>>` and we don't need a `default` clause,
+both `case` clauses are matching against a `Ping`; thus, the entire switch
+is effectively equivalent to a simple `if`/`else`! 
 
 #### Closures vs Classes
 
 Notice how the traditional way to increase a counter is to create a closure with the value:
 
 ```java
-void run() {
+void static void main(String... args) {
     ...
     var ponger = actorSystem.actorOf(self -> msg -> pongerBehavior(self, msg, 0));
     ...
 }
-Effect pongerBehavior(Address self, Ping msg, int counter) {
+static Effect pongerBehavior(Address self, Ping msg, int counter) {
     return switch (msg) {
         case Ping p && counter < 10 -> {
             ...
@@ -505,19 +559,16 @@ class StatefulPonger implements Behavior<Ping> {
     Address<Ping> self; int counter = 0;
     StatefulPonger(Address<Ping> self) { this.self = self; }
     public Effect<Ping> apply(Ping msg) {
-        return switch (msg) {
-            case Ping p && counter < 10 -> {
-                out.println("ping! 👉");
-                p.sender().tell(new Pong(self));
-                this.counter++;
-                yield Stay();
-            }
-            case Ping p -> {
-                out.println("ping! 💀");
-                p.sender().tell(new DeadlyPong(self));
-                yield Die();
-            }
-        };
+        if (counter < 10) {
+            out.println("ping! 👉");
+            msg.sender().tell(new SimplePong(self));
+            this.counter++;
+            return Stay();
+        } else {
+            out.println("ping! 💀");
+            msg.sender().tell(new DeadlyPong(self));
+            return Die();
+        }
     }
 }
 ```
@@ -528,7 +579,7 @@ class StatefulPonger implements Behavior<Ping> {
 > You can run the following example with:
 > 
 > ```sh
-> j! https://gist.github.com/evacchi/a46827cdcbdfefd93cf003459bb6fee1
+> j! https://github.com/evacchi/min-java-actors/blob/fix-typed/src/main/java/io/github/evacchi/typed/examples/VendingMachine.java
 > ```
 
 <div style="float:right">
@@ -875,5 +926,7 @@ In order to be schedulable, the actor must be a `Runnable`, so here is the `run(
 [jep305]: https://openjdk.java.net/jeps/305
 [jep330]: https://openjdk.java.net/jeps/330
 [jep361]: https://openjdk.java.net/jeps/361
+[jep395]: https://openjdk.java.net/jeps/395
+[jep409]: https://openjdk.java.net/jeps/409
 [wiki-actor]: https://en.wikipedia.org/wiki/Actor_model#Fundamental_concepts
 [closures-objects]: http://people.csail.mit.edu/gregs/ll1-discuss-archive-html/msg03277.html
