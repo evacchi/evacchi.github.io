@@ -2,8 +2,10 @@
 title:  'Type You An Actor Runtime For Greater Good! (with Java 17, records, switch expressions and JBang)'
 subtitle: ''
 categories: [Java, Records, JBang]
-date:   2021-11-18
+date:   2022-02-13
 ---
+
+*This blog post was originally published at the [Java Advent Calendar 2021](https://www.javaadvent.com/2021/12/type-you-an-actor-runtime-for-greater-good-with-java-17-records-switch-expressions-and-jbang.html).*
 
 The festive season is that period of the year when they tempt you to indulge in those dear sweet, sugary treats. 
 
@@ -462,7 +464,7 @@ static Effect<Pong> pingerBehavior(Address<Pong> self, Pong msg) {
 }
 ```
 
-The prints the following:
+This prints the following:
 
 ```
 ping! 👉
