@@ -73,13 +73,13 @@ $ cat logs.txt | jbang -s Prelude.jsh -c \
 of course, you'll need to first download `Prelude.jsh`:
 
 ```sh
-$ curl -LO https://gist.githubusercontent.com/evacchi/7fb37056d92f72ae88157adcbb2f6bea/raw/8cdef074fe8184e8ed964c177c5cb835c863d1d5/Prelude.jsh
+$ curl -L https://bit.ly/prelude-jsh -o Prelude.jsh
 ```
 
 oh, by the way, since JBang is awesome, you can also write:
 
 ```sh
-$ cat logs.txt | jbang -s https://gist.githubusercontent.com/evacchi/7fb37056d92f72ae88157adcbb2f6bea/raw/8cdef074fe8184e8ed964c177c5cb835c863d1d5/Prelude.jsh -c \
+$ cat logs.txt | jbang -s https://bit.ly/prelude-jsh -c \
     'lines().map(Line::new).map(l -> l.s(2)).forEach(s -> println(s))'
 ```
 
@@ -134,7 +134,8 @@ is just:
 
 ```sh
 $ cat millis.txt | jbang -s Prelude.jsh -c \
-    '$lines().filter(l -> l.s(0).matches(".*(GET|HEAD).*")).forEach(l -> printf("%.0fms\n", l.d(3)*1000))'
+    '$lines().filter(l -> l.s(0).matches(".*(GET|HEAD).*"))
+        .forEach(l -> printf("%.0fms\n", l.d(3)*1000))'
 ```
 
 This is only slightly more cumbersome because `String#matches` matches against the entire line; hence requiring the leading `.*(` and the trailing `).*` in the pattern. You may easily add a shorthand to `Line` to decorate the pattern and avoid the noise.
