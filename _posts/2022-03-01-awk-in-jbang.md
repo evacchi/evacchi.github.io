@@ -83,6 +83,13 @@ $ cat logs.txt | jbang -s https://bit.ly/prelude-jsh -c \
     'lines().map(Line::new).map(l -> l.s(2)).forEach(s -> println(s))'
 ```
 
+> 🚨 **Update:** JBang v0.91.0 has become even *awesomer*: you can now skip the download and use the [catalog I posted here](https://github.com/evacchi/jbang-catalog)
+> 
+> ```sh
+> $ cat logs.txt | jbang -s prelude@evacchi -c \
+>     'lines().map(Line::new).map(l -> l.s(2)).forEach(s -> println(s))'
+> ```
+
 Now, because creating a `Line` object, then mapping it and then printing each result is so frequent, I also defined a few shorthands for you:
 
 ```java
