@@ -87,7 +87,8 @@ If you understand the risks of invoking the tools manually:
 
 2. produce the final binary from `wasi.o` using `wasm-ld`:
 
-        wasm-ld -m wasm32 -L$WASI_SYSROOT/lib/wasm32-wasi $WASI_SYSROOT/lib/wasm32-wasi/crt1.o wasi.o -lc \
+        wasm-ld -m wasm32 -L$WASI_SYSROOT/lib/wasm32-wasi \
+            $WASI_SYSROOT/lib/wasm32-wasi/crt1.o wasi.o -lc \
             $PWD/lib/wasi/libclang_rt.builtins-wasm32.a -o wasi.wasm
 
 
