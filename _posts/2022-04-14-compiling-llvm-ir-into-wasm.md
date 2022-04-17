@@ -67,17 +67,32 @@ define i32 @main() #0 {
 declare i32 @putchar(i32) #1
 ```
 
-Compile `wasi.ll` as follows into an object file:
+**Update 2022-04-16**: Shortly after I published this blog post 
+[I have learned from Dan Gohman (@Sunfishcode)][sunfishcode] that the blessed way 
+to compile LLVM IR sources (`*.ll`) with WASI support is to rely on `clang`. 
 
-    llc -march=wasm32 -filetype=obj wasi.ll
+In this case, this is the proper command line:
 
-This generates the object file `wasi.o`. We will now produce the final binary with `wasm-ld`:
-
-    wasm-ld -m wasm32 -L$WASI_SYSROOT/lib/wasm32-wasi $WASI_SYSROOT/lib/wasm32-wasi/crt1.o wasi.o -lc \
+    clang wasi.ll --target=wasm32-unknown-wasi --sysroot=$WASI_SYSROOT -lc \
         $PWD/lib/wasi/libclang_rt.builtins-wasm32.a -o wasi.wasm
 
+Unless you are doing something very specific and you know what you are doing, you should not invoke
+`wasi-ld` directly, as the interface will be subject to changes in the future.
 
-That's it! Now you can run our boring program with your favorite `wasm` runtime:
+If you understand the risks of invoking the tools manually:
+
+1. compile `wasi.ll` into an object file (`wasi.o`) using `llc`:
+
+        llc -march=wasm32 -filetype=obj wasi.ll
+
+2. produce the final binary from `wasi.o` using `wasm-ld`:
+
+        wasm-ld -m wasm32 -L$WASI_SYSROOT/lib/wasm32-wasi \
+            $WASI_SYSROOT/lib/wasm32-wasi/crt1.o wasi.o -lc \
+            $PWD/lib/wasi/libclang_rt.builtins-wasm32.a -o wasi.wasm
+
+
+Regardless how you generated `wasi.wasm`, that's it! Now you can run our boring program with your favorite `wasm` runtime:
 
     wasmtime wasi.wasm
     Hello
@@ -88,7 +103,7 @@ Have fun!
 [surma]:  https://surma.dev/things/c-to-webassembly/ 
 [frank-denis]: https://00f.net/2019/04/07/compiling-to-webassembly-with-llvm-and-clang/
 [wasi-sysroot]: https://github.com/WebAssembly/wasi-sdk/releases/
-
+[sunfishcode]: https://twitter.com/Sunfishcode/status/1514818972251688960
 
 
 
