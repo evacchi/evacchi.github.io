@@ -68,7 +68,7 @@ declare i32 @putchar(i32) #1
 ```
 
 **Update 2022-04-16**: Shortly after I published this blog post 
-[I have learned from Dan Gohman (@Sunfishcode)][sunfishcode] that the blessed way 
+[I have learned from Dan Gohman (@Sunfishcode)][sunfishcode] that the easiest way 
 to compile LLVM IR sources (`*.ll`) with WASI support is to rely on `clang`. 
 
 In this case, this is the proper command line:
