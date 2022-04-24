@@ -109,7 +109,7 @@ Don't you believe me? Why, let's try implementing [another callback in the spec]
     (func $proxy_on_memory_allocate (param $memory_size i32) (result i32)
     i32.const 0 ;; do not allocate any memory
     return)
-    (func $proxy_on_vm_start (param $root_context_id i32) ($vm_configuration_size i32) (result i32)
+    (func $proxy_on_vm_start (param $root_context_id i32) (param $vm_configuration_size i32) (result i32)
     i32.const 0
     return)
 
@@ -134,8 +134,8 @@ but turn the boolean result into a `1`:
 
 ```clj
     ...
-    (func $proxy_on_vm_start (param $root_context_id i32) ($vm_configuration_size i32) (result i32)
-    i32.const 0
+    (func $proxy_on_vm_start (param $root_context_id i32) (param $vm_configuration_size i32) (result i32)
+    i32.const 1
     return)
     ...
 ```
