@@ -277,7 +277,7 @@ GEM
 
 PLATFORMS
   x86_64-darwin-21
-  x86_64-linux-musl
+  x86_64-linux
 
 DEPENDENCIES
   github-pages
@@ -285,4 +285,4 @@ DEPENDENCIES
   jekyll-include-cache
 
 BUNDLED WITH
-   2.2.24
+   2.2.30
