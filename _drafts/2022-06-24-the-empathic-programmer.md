@@ -54,18 +54,19 @@ were acting in bad faith.
 ## Cultural Diversity ##
 
 You would think that another major source of frustration would be working in a truly
-distributed team. On the one hand, because of the different time zones, sometimes touching bases 
+distributed team. On the one hand, because of the differing time zones, sometimes touching bases 
 with other team members was challenging. On the other hand, I was forced at home. The team mates
 I usually met weekly at the office felt just as distant as anybody else. In a way, being forced at home
-zeroed our geographical distance and put everyone at the same level. 
+zeroed out our geographical distance and put everyone at the same perceived distance. 
 
 In practice, I discovered an incredible degree of affinity with team mates at the other side of the globe:
-it truly made me appreciate the global dimension of Red Hat as a company. I became friends
-with people that I hardly spoke to in the past; and in some sense, I have to thank the pandemic for that.
+it truly made me appreciate the worldwide dimension of Red Hat as a company. I became friends
+with people that I hardly spoke to in the past.
 
-Because I could not meet with my usual friends in person, and I could not attend conferences,
+Because I could not meet with my usual friends in person, and I could not travel and attend conferences,
 the pandemic made me appreciate how easily I could connect with people living in distant 
-places on the planet, who would share with me their experiences, so that, at least, I could travel with my imagination. 
+places on the planet, who would share with me their experiences, so that, at least, 
+I could travel with my imagination. 
 
 I also understood how isolated they would feel when some decision had been taken at our local offices,
 without taking them into account; and, by extent, it made me also appreciate how a similar feeling
@@ -102,8 +103,8 @@ And then maybe our workmates reject them.
 
 What went wrong?
 
-Well, first of all, you asked yourself what you could contribute to the team, and the only answer
-you found was "code". Second, you were so worried about asking for help, that you ended up doing a lot of useless work.
+Well, first of all, we asked ourselves what we could contribute to the team, and the only answer
+we found was "code". Second, we were so worried about asking for help, that we ended up doing a lot of useless work.
 
 This feeling of "being an impostor" may fade with time, but it may never fade out completely; the error is thinking
 this is bad: this is *good*! Rather than thinking about what your team mates know that you don't, 
@@ -114,7 +115,7 @@ But my issue is that I may get caught in a form of [analysis paralysis][analysis
 Now, what *I* can bring to the team, is my love for design and research; but what the *fearless coder* brings is the
 the burning desire to build something for real!
 
-So you can see how everyone, even in a highly-diverse team may bring their own contribution.
+So you can see how everyone, even in a highly-diverse team, may bring their own contribution.
 On the other hand, if people make you *feel* like an *impostor*, then that's an entirely different problem.
 That is a toxic workplace and you should leave that job or at the very least that team.
 
@@ -174,7 +175,7 @@ There are *bad* choices, that a *fearless coder* may have spewed out in a moment
 Your role as a team leader is to pick neither choice: neither the *bad one* because 
 "we are on a rush, and we need to deliver", neither the *excellent one* because "purity goes
 above everything else". It is a spectrum: you have to pick the choice that is a good fit 
-for your team, even if they are not the best.
+for your team, even if it is not the best.
 
 Your role, as a leader, is also to make tough choices: do not fear to take an impopular
 choice, because you may no longer be liked. Good open source projects have a Benevolent 
@@ -188,7 +189,7 @@ But because I struggled to understand their point of view. I think the pandemic 
 on the way many of us see interactions in the workplace. Today, I go way less to the office.
 In the future, who knows? Regardless your preference, I hope that tomorrow,
 when you sit at your desk, be it at home or at the office, you'll make that extra effort
-and to really be an *empathic programmer*.
+to really be an *empathic programmer*.
 
 
 [no-impostor]: https://medium.com/counter-intuition/you-don-t-have-impostor-syndrome-126e4c4bdcc
