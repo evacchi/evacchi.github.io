@@ -13,13 +13,13 @@ Well, that was weird. My previous office was at walking distance from the new pl
 but the difference felt like day and night. Shiny everlit open spaces in a skyscraper. But that would 
 not matter much for a Red Hatter, because they worked from home. To be fair I never 
 even considered that an option. I am lucky enough to live in the big city, so commuting is not much of a problem for me. 
-Besides, I always thought of the office as of a place were making new friends. After all,
+Besides, I always thought of the office as of a place where making new friends. After all,
 you spend most of your week together with your workmates. So, at some point, I swore to myself that 
 I would go to the new office every day. All in all, I found a good balance, and I met most team mates
 at least once a week.
 
 Now, you probably already know that Italy was the first country in Europe to be striken by the pandemic. 
-I think the experience was trying for all of us. I, myself, I do think I have learned a thing of two;
+I think the experience was trying for all of us. I, myself, I do think I have learned a thing or two;
 these are my notes.
 
 ## People Who Are Not Afraid To Code ##
