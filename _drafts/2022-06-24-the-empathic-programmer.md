@@ -9,6 +9,8 @@ tags:
 On my first day at Red Hat, the lights at the office were all off, there was no one waiting at the reception,
 and when I left my team mates for goodbye, they said "see you next Thursday." 
 
+<img src=https://cdn.pixabay.com/photo/2020/03/22/19/06/scrabble-4958234_960_720.jpg    >
+
 Well, that was weird. My previous office was at walking distance from the new place,
 but the difference felt like day and night. Shiny everlit open spaces in a skyscraper. But that would 
 not matter much for a Red Hatter, because they worked from home. To be fair I never 
@@ -35,6 +37,8 @@ Well, spoiler alert: that was a huge mistake; I ended up spreading myself too th
 Now, in those days, I was curating different aspects of the project. In many cases I got frustrated. 
 I concluded that most frustration was due to a lack of empathy from either side.
 
+<img src=https://c.tenor.com/OKwYaOxM7VkAAAAd/i-can-typing-typing.gif width=200 style=float:right />
+
 For instance, when I was reviewing some of the latest contributions to that codebase, 
 I had the impression they did not put a lot of a lot of thought into that work. 
 In fact, I had the impression that, rather than *thinking*, someone would just *write code*. 
@@ -59,6 +63,8 @@ with other team members was challenging. On the other hand, I was forced at home
 I usually met weekly at the office felt just as distant as anybody else. In a way, being forced at home
 zeroed out our geographical distance and put everyone at the same perceived distance. 
 
+<img src=https://images-na.ssl-images-amazon.com/images/I/71IU6CGmdNL.jpg width=250 style="float:left;margin:0 1em 0 0">
+
 In practice, I discovered an incredible degree of affinity with team mates at the other side of the globe:
 it truly made me appreciate the worldwide dimension of Red Hat as a company. I became friends
 with people that I hardly spoke to in the past.
@@ -78,6 +84,8 @@ of detachment and exclusion would be felt by other remote workers; in other word
 I have personally grown to dislike the term *impostor syndrome*. In fact, I kind of believe that 
 *there is nothing wrong with feeling like an impostor*. It means you are not "the smartest person in the room". 
 It means that you can learn a lot. As [Alicia Liu puts it in her short essay][no-impostor]:
+
+<img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQOezEp6VKw1we8JxDS3U24CpwcR7wQVs-4hQw0gPVFuIndxNYl" width=200 style="float:right;margin:0  0  0  1em ">
 
 > My concern with this misrepresentation of Impostor Syndrome is that it pathologizes 
 > the very process of learning itself. When you’re learning, you’re supposed to feel 
@@ -106,9 +114,13 @@ What went wrong?
 Well, first of all, we asked ourselves what we could contribute to the team, and the only answer
 we found was "code". Second, we were so worried about asking for help, that we ended up doing a lot of useless work.
 
+<img src=https://miro.medium.com/max/350/1*viEKv4-P_5q5Yn_2EaI18w.png style=float:right width=250>
+
 This feeling of "being an impostor" may fade with time, but it may never fade out completely; the error is thinking
 this is bad: this is *good*! Rather than thinking about what your team mates know that you don't, 
 think of *everything* you can actually *contribute*. Be it ideas, be it attitude. 
+
+
 
 I myself, I like to do high-level design and academic research just as much as I like to write code. 
 But my issue is that I may get caught in a form of [analysis paralysis][analysis-paralysis].
