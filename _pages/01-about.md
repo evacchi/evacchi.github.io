@@ -27,6 +27,7 @@ During my PhD I researched language design and implementation at [University of 
 
   <iframe width="560" height="315" src="https://www.youtube.com/embed/videoseries?list=PLJIBlzfhfvVhM7Nfjmf2_Z_M8EkbndbUG" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
+    * [[Devoxx Belgium 2022] Write You An Actor System For Great Good! (with JBang, JDK 19, records, pattern matching and virtual threads!)](https://www.youtube.com/watch?v=TOL3zpn1vvQ)
     * [[Voxxed Days Zurich 2022] The Call of Ctooling: The Secrets Behind Native Image Building](https://www.youtube.com/watch?v=kpnEp08PJDs)
     * [[Voxxed Days Romania 2021] The Call of Ctooling: The Secrets Behind Native Image Building](https://www.youtube.com/watch?v=7QM4KLaRRRQ)
     * [[QCon São Paulo 2019] Your Program as a Transpiler: Applying Compiler Design to Everyday Programming](https://www.youtube.com/watch?v=BUrY6On1SxM)
