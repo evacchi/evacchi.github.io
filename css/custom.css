@@ -1,0 +1,43 @@
+
+@font-face {
+    font-family: FontAwesome-Brands;
+    src: url(/woff/fa-brands-400.woff2);
+    font-style: normal;
+    font-weight: 400;
+    font-display: block;
+}
+
+.profile .avatar {
+    width: 150px;
+    height: 150px;
+}
+.profile .bio {
+    color: #bbbbbb;
+}
+.profile .bio h2 {
+    margin: 0;
+}
+.profile .bio p {
+    margin-block-start: 0;
+    margin-block-end: 0;
+}
+
+.social a {
+    font-family: 'FontAwesome-Brands';
+    color: #bbbbbb;
+    font-size: 130%;
+}
+
+.social a:hover {
+    font-family: 'FontAwesome-Brands';
+    color: #0366d6;
+}
+
+.social a.linkedin:before {
+    content: "\f08c"; }
+.social a.github:before {
+    content: "\f09b"; }
+.social a.twitter:before {
+    content: "\f099"; }
+.social a.mastodon:before {
+    content: "\f4f6"; }
