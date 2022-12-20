@@ -1,0 +1,40 @@
+baseURL: http://evacchi.github.io/
+disablePathToLower: false
+hiddenPostSummaryInHomePage: true
+languageCode: en-us
+title: "Middle of Nowhere"
+permalinks:
+  posts: /:section/:year/:month/:day/:title/
+  pages: /:filename/
+
+markup:
+  highlight:
+    style: vs
+  goldmark:
+    renderer:
+      unsafe: true
+
+theme: 
+  - github.com/nodejh/hugo-theme-mini
+
+
+params:
+  # Site Author
+  author: Edoardo Vacchi
+  # Author biography
+  bio: |
+    <h2>Edoardo Vacchi</h2>
+
+    Programming Language Nerd
+  # Site Description, used in HTML meat
+  description: My Blog
+  customCSS:
+    - css/custom.css # local css in `static/css/custom.css`
+
+
+social:
+  # e.g.
+  github: https://github.com/evacchi
+  linkedin: https://linkedin.com/in/edoardovacchi
+  twitter: https://twitter.com/evacchi
+  mastodon: https://mastodon.social/@evacchi

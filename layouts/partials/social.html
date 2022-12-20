@@ -1,0 +1,9 @@
+<div class="social">
+
+    {{ range $key, $val := .Site.Social }}
+        <a class="symbol {{ $key }}" href="{{ $val }}" rel="me" target="_blank">
+        </a>
+    {{ end }}
+    
+</div>
+    

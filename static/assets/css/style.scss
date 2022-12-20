@@ -1,0 +1,23 @@
+---
+---
+
+@import "plain";
+
+.about-title > a > img {
+  border-radius: 50%;
+}
+
+main .about .tagline {
+  text-align: center;
+  font-size: 100%;
+}
+
+p.originally {
+  font-size: small;
+  font-style: italic;
+  opacity: .7;
+}
+
+main {
+  max-width: 1200px;
+}
