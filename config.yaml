@@ -1,4 +1,4 @@
-baseURL: //evacchi.github.io/
+baseURL: /
 disablePathToLower: false
 hiddenPostSummaryInHomePage: true
 languageCode: en-us
