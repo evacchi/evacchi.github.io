@@ -7,22 +7,6 @@
     font-display: block;
 }
 
-
-.main {
-    /* flex-direction: column; */
-    /* max-width: 1200px ; */
-}
-
-/* .profile {
-    display: flex;
-    height: 100vh;
-    padding-bottom: 15vh;
-    min-width: 220px;
-    justify-content: center;
-    flex-direction: column;
-    align-items: center;
-} */
-
 .profile .avatar {
     width: 150px;
     height: 150px;
@@ -36,10 +20,6 @@
 .profile .bio p {
     margin-block-start: 0;
     margin-block-end: 0;
-}
-
-.profile .social {
-    /* margin-top: 1em; */
 }
 
 .social a {
@@ -61,13 +41,3 @@
     content: "\f099"; }
 .social a.mastodon:before {
     content: "\f4f6"; }
-
-/* 
-
-@media (min-width: 1100px) {
-.profile {
-    position: fixed;
-    max-width: 280px;
-    top: 10em
-}
-} */
