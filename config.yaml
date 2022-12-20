@@ -30,6 +30,9 @@ params:
   description: My Blog
   customCSS:
     - css/custom.css # local css in `static/css/custom.css`
+  params:
+    enableGoogleAnalytics: true
+    googleAnalytics: G-JEBNMYFPPB
 
 
 social:
