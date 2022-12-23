@@ -7,6 +7,8 @@ permalinks:
   posts: /:section/:year/:month/:day/:title/
   pages: /:filename/
 
+googleAnalytics: G-JEBNMYFPPB
+
 markup:
   highlight:
     style: vs
@@ -32,7 +34,6 @@ params:
     - css/custom.css # local css in `static/css/custom.css`
   params:
     enableGoogleAnalytics: true
-    googleAnalytics: G-JEBNMYFPPB
 
 
 social:
