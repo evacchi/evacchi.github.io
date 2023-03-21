@@ -42,3 +42,16 @@
     content: "\f099"; }
 .social a.mastodon:before {
     content: "\f4f6"; }
+
+
+pre {
+    border-top: 1px dotted #bbbbbb;
+    border-bottom: 1px dotted #bbbbbb;
+    white-space: pre;
+    font-size: 80%;
+    overflow-x: auto;
+}
+
+p code {
+    font-size: 80%;
+}
