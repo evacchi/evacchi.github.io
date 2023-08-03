@@ -26,6 +26,9 @@ Slides on [Speaker Deck](https://speakerdeck.com/evacchi)
 
   <iframe width="560" height="315" src="https://www.youtube.com/embed/videoseries?list=PLJIBlzfhfvVhM7Nfjmf2_Z_M8EkbndbUG" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
+  * [[HighLoad++ Serbia 2023]: WebAssembly from the inside out](https://www.youtube.com/watch?v=93NL17DYNQs)
+  * [[JNation 2023]: WebAssembly for the Java Geek](https://www.youtube.com/watch?v=PRL05TZtxpM)
+  * [JNation 2023] Workshop: Write You An Actor (System) For Great Good! (with JDK 19, records and vthreads!) - with Andrea Peruffo
   * [Devoxx UK 2023] Ignite Talk: Write a microservice in 5 minutes with Go, WebAssembly and Wazero!
   * [Devoxx UK 2023] Mini-lab: Write You An Actor (System) For Great Good! (with JDK 19, records and vthreads!) - with Andrea Peruffo
   * [[Wasm I/O 2023] Wasmer Things: An Upside-Down Guide To WebAssembly](https://www.youtube.com/watch?v=5nDuj1R9PhM)
