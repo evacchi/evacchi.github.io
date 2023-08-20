@@ -8,7 +8,7 @@ title: WebAssembly for the Java Geek
 ---
 
 <div style="padding: 1em; background: #eee">
-<b>Update (Aug 3, 2023)</b>. This post was originally published at <a href="https://www.javaadvent.com/2022/12/webassembly-for-the-java-geek.html">JVM Advent</a>. If you want to read a more comprehensive guide to language VMs, I strongly recommend <a href="https://www.neversaw.us/2023/05/10/understanding-wasm/part1/virtualization/">Chris Dickinson's series</a> and especially <a href="https://www.neversaw.us/2023/06/30/understanding-wasm/part2/whence-wasm/">part 2</a>. If you want see a recorded, more recent version of this content, <a href="https://www.youtube.com/watch?v=PRL05TZtxpM">check out my JNation talk</a>.
+<b>Update (Aug 3, 2023)</b>. This post was originally published at <a href="https://www.javaadvent.com/2022/12/webassembly-for-the-java-geek.html">JVM Advent</a>. If you want to read a more comprehensive guide to language VMs, I strongly recommend <a href="https://www.neversaw.us/2023/05/10/understanding-wasm/part1/virtualization/">Chris Dickinson's series</a> and especially <a href="https://www.neversaw.us/2023/06/30/understanding-wasm/part2/whence-wasm/">part 2</a>. If you want to see a recorded, more recent version of this content, <a href="https://www.youtube.com/watch?v=PRL05TZtxpM">check out my JNation talk</a>.
 </div>
 
 
