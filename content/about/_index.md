@@ -7,7 +7,7 @@ permalink: /about/
 # About Me
 
 
-During my PhD I researched language design and implementation at [University of Milan](https://www.di.unimi.it). After three years at [UniCredit Bank's R&D department](https://unicredit.eu), I have joined Red Hat in the [KIE group](https://www.kie.org). My current work is mainly on the [Drools rules engine](https://drools.org) and the [Kogito project](https://kogito.kie.org).
+During my PhD I researched language design and implementation at [University of Milan](https://www.di.unimi.it). After three years at [UniCredit Bank's R&D department](https://unicredit.eu), I have joined Red Hat in the [KIE group](https://www.kie.org), where I worked on the [Drools rules engine](https://drools.org) and the [Kogito project](https://kogito.kie.org). Currently I work at [Tetrate](https://tetrate.io), and I am a member of the [wazero](https://wazero.io) development team: [wazero](https://wazero.io) is a zero-dependency WebAssembly runtime for the Go language.
 
 ## Research
 
