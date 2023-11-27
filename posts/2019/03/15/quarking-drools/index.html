@@ -1,13 +1,13 @@
-<!doctype html><html lang=en-us><head><title>Quarking Drools | Middle of Nowhere</title><meta charset=utf-8><meta http-equiv=x-ua-compatible content="IE=edge,chrome=1"><meta name=viewport content="width=device-width,minimum-scale=1"><meta name=description content="The question of whether a computer can think is no more interesting than the question of whether a submarine can swim. (Edsger W. Dijkstra)
-Motivation 🔗Rule-based artificial intelligence (AI) is often overlooked, possibly because people think it’s only useful in heavyweight enterprise software products. However, that’s not necessarily true. Simply put, a rule engine is just a piece of software that allows you to separate domain and business-specific constraint from the main application flow."><meta name=generator content="Hugo 0.117.0"><meta name=ROBOTS content="NOINDEX, NOFOLLOW"><link rel=stylesheet href=/css/style.css><link rel=stylesheet href=/css/custom.css><link rel="shortcut icon" href=/images/favicon.ico type=image/x-icon><script async src="https://www.googletagmanager.com/gtag/js?id=G-JEBNMYFPPB"></script>
-<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-JEBNMYFPPB")</script></head><body><nav class=navigation><a href=/><span class=arrow>←</span>Home</a>
+<!doctype html><html lang=en-us><head><title>Quarking Drools | Middle of Nowhere</title>
+<meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge,chrome=1"><meta name=viewport content="width=device-width,minimum-scale=1"><meta name=description content="The question of whether a computer can think is no more interesting than the question of whether a submarine can swim. (Edsger W. Dijkstra)
+Motivation 🔗Rule-based artificial intelligence (AI) is often overlooked, possibly because people think it’s only useful in heavyweight enterprise software products. However, that’s not necessarily true. Simply put, a rule engine is just a piece of software that allows you to separate domain and business-specific constraint from the main application flow."><meta name=generator content="Hugo 0.120.4"><meta name=ROBOTS content="NOINDEX, NOFOLLOW"><link rel=stylesheet href=/css/style.css><link rel=stylesheet href=/css/custom.css><link rel="shortcut icon" href=/images/favicon.ico type=image/x-icon><script async src="https://www.googletagmanager.com/gtag/js?id=G-JEBNMYFPPB"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-JEBNMYFPPB")</script></head><body><nav class=navigation><a href=/><span class=arrow>←</span>Home</a>
 <a href=/posts>Archive</a>
 <a href=/tags>Tags</a>
 <a href=/about>About</a></nav><main class=main><section id=single><h1 class=title>Quarking Drools</h1><div class=tip><time datetime="2019-03-15 00:00:00 +0000 UTC">Mar 15, 2019</time>
-<span class=split>·</span>
-<span>2513 words</span>
-<span class=split>·</span>
-<span>12 minute read</span></div><div class=content><blockquote><p>The question of whether a computer can think is no more interesting
+<span class=split>·
+</span><span>2513 words
+</span><span class=split>·
+</span><span>12 minute read</span></div><div class=content><blockquote><p>The question of whether a computer can think is no more interesting
 than the question of whether a submarine can swim. (<em>Edsger W.
 Dijkstra</em>)</p></blockquote><h2 id=motivation>Motivation <a href=#motivation class=anchor>🔗</a></h2><p>Rule-based artificial intelligence (AI) is often overlooked, possibly because people think it’s only useful in heavyweight enterprise software products. However, that’s not necessarily true. Simply put, a rule engine is just a piece of software that allows you to separate domain and business-specific constraint from the main application flow. We are part of the team developing and maintaining Drools—the world’s most popular open source rule engine and part of Red Hat—and, in this article, we will describe how we are changing Drools to make it part of the cloud and serverless revolution.</p><h2 id=technical-overview>Technical Overview <a href=#technical-overview class=anchor>🔗</a></h2><p>Our main goal was to make the core of the rule engine lighter, isolated,
 easily portable across different platforms, and well-suited to run in a
@@ -57,11 +57,11 @@ describes the constraints that activate the rule and make it ready to
 <em>fire</em>; the <em>consequence</em> part, also called the <em>right-hand side</em> of the
 rule, contains the action that rule will take when the rule is fired.</p><p>In Drools, a rule is written using the Drools Rule Language (in short,
 DRL), and it has the form:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>rule R1 when
-</span></span><span style=display:flex><span>  $r : Result()                                <span style=color:green>// constraints
-</span></span></span><span style=display:flex><span><span style=color:green></span>  $p : Person( age &gt;= 18 )    
+</span></span><span style=display:flex><span>  $r : Result()                                <span style=color:green>// constraints</span>
+</span></span><span style=display:flex><span>  $p : Person( age &gt;= 18 )    
 </span></span><span style=display:flex><span>then
-</span></span><span style=display:flex><span>  $r.setValue( $p.getName() + <span style=color:#a31515>&#34; can drink&#34;</span>);   <span style=color:green>// consequence
-</span></span></span><span style=display:flex><span><span style=color:green></span>end
+</span></span><span style=display:flex><span>  $r.setValue( $p.getName() + <span style=color:#a31515>&#34; can drink&#34;</span>);   <span style=color:green>// consequence</span>
+</span></span><span style=display:flex><span>end
 </span></span></code></pre></div><p>Constraints are written using a form of pattern-matching over the data
 (Java objects) that is inserted into the working memory. Actions are
 basically a block of Java code with a few Drools-specific extensions.</p><p>Historically, the DRL used to be a dynamic language that was interpreted
@@ -80,9 +80,9 @@ memory contains any Result instance, and instance of Person where the
 age field is greater or equal to 18. The consequence is to set the value
 of the Result object to a String saying that the person can drink. The
 equivalent rule expressed with the executable model API looks like it
-follows (pretty-printed for readability):</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>var r = declarationOf(Result.class, <span style=color:#a31515>&#34;$r&#34;</span>);
-</span></span><span style=display:flex><span>var p = declarationOf(Person.class, <span style=color:#a31515>&#34;$p&#34;</span>);
-</span></span><span style=display:flex><span>var rule = 
+follows (pretty-printed for readability):</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>var</span> r = declarationOf(Result.class, <span style=color:#a31515>&#34;$r&#34;</span>);
+</span></span><span style=display:flex><span><span style=color:#00f>var</span> p = declarationOf(Person.class, <span style=color:#a31515>&#34;$p&#34;</span>);
+</span></span><span style=display:flex><span><span style=color:#00f>var</span> rule = 
 </span></span><span style=display:flex><span>  rule(<span style=color:#a31515>&#34;com.example&#34;</span>, <span style=color:#a31515>&#34;R1&#34;</span>).build(
 </span></span><span style=display:flex><span>    pattern(r),
 </span></span><span style=display:flex><span>    pattern(p).expr(<span style=color:#a31515>&#34;e&#34;</span>, p -&gt; p.getAge() &gt;= 18),
@@ -162,11 +162,11 @@ Here&rsquo;s a comparison of the XML with a snippet of the generated code
 verbose because it makes explicit all the configuration defaults.</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-xml data-lang=xml><span style=display:flex><span>&lt;kbase name=<span style=color:#a31515>&#34;simpleKB&#34;</span> packages=<span style=color:#a31515>&#34;org.drools.simple.project&#34;</span>&gt;
 </span></span><span style=display:flex><span>&lt;ksession name=<span style=color:#a31515>&#34;simpleKS&#34;</span> default=<span style=color:#a31515>&#34;true&#34;</span>/&gt;
 </span></span><span style=display:flex><span>&lt;/kbase&gt;
-</span></span></code></pre></div><p>vs.</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>var m = KieServices.get().newKieModuleModel();
-</span></span><span style=display:flex><span>var kb = m.newKieBaseModel(<span style=color:#a31515>&#34;simpleKB&#34;</span>);
+</span></span></code></pre></div><p>vs.</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>var</span> m = KieServices.get().newKieModuleModel();
+</span></span><span style=display:flex><span><span style=color:#00f>var</span> kb = m.newKieBaseModel(<span style=color:#a31515>&#34;simpleKB&#34;</span>);
 </span></span><span style=display:flex><span>kb.setEventProcessingMode(CLOUD);
 </span></span><span style=display:flex><span>kb.addPackage(<span style=color:#a31515>&#34;org.drools.simple.project&#34;</span>);
-</span></span><span style=display:flex><span>var ks = kb.newKieSessionModel(<span style=color:#a31515>&#34;simpleKS&#34;</span>);
+</span></span><span style=display:flex><span><span style=color:#00f>var</span> ks = kb.newKieSessionModel(<span style=color:#a31515>&#34;simpleKS&#34;</span>);
 </span></span><span style=display:flex><span>ks.setDefault(<span style=color:#00f>true</span>);
 </span></span><span style=display:flex><span>ks.setType(STATEFUL);
 </span></span><span style=display:flex><span>ks.setClockType(ClockTypeOption.get(<span style=color:#a31515>&#34;realtime&#34;</span>));
@@ -185,8 +185,8 @@ with a minimal core.</p><div class=highlight><pre tabindex=0 style=background-co
 </span></span><span style=display:flex><span><span style=color:#00f>private</span> <span style=color:#2b91af>void</span> wireServices() {
 </span></span><span style=display:flex><span>  serviceMap.put(ServiceInterface.class,
 </span></span><span style=display:flex><span>  Class.forName(<span style=color:#a31515>&#34;org.drools.ServiceImpl&#34;</span>).newInstance());
-</span></span><span style=display:flex><span>  <span style=color:green>// … more services here
-</span></span></span><span style=display:flex><span><span style=color:green></span>}
+</span></span><span style=display:flex><span>  <span style=color:green>// … more services here</span>
+</span></span><span style=display:flex><span>}
 </span></span></code></pre></div><p>Please notice that, although here we are using Class.forName(), the
 compiler is smart enough to recognize the constant, and substitute it
 with an actual constructor. Of course it is possible to simplify this

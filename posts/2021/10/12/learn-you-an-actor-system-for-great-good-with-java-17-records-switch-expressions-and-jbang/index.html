@@ -1,14 +1,14 @@
-<!doctype html><html lang=en-us><head><title>Learn You An Actor (System) For Great Good! (with Java 17, records, switch expressions and JBang) | Middle of Nowhere</title><meta charset=utf-8><meta http-equiv=x-ua-compatible content="IE=edge,chrome=1"><meta name=viewport content="width=device-width,minimum-scale=1"><meta name=description content="In 2012, Viktor Klang published a tiny Java snippet that implemented a tiny actor system in about
+<!doctype html><html lang=en-us><head><title>Learn You An Actor (System) For Great Good! (with Java 17, records, switch expressions and JBang) | Middle of Nowhere</title>
+<meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge,chrome=1"><meta name=viewport content="width=device-width,minimum-scale=1"><meta name=description content="In 2012, Viktor Klang published a tiny Java snippet that implemented a tiny actor system in about
 about 20 lines of code; a few years later, a revised version showed how to do the same in Scala.
-I think untyped actors in the style of Akka Classic have always felt clunky in Java; Java used to lack a way to express pattern matching concisely. However, a few days ago I realized that Java 17 provides enough syntactic sugar to write shorter actors:"><meta name=generator content="Hugo 0.117.0"><meta name=ROBOTS content="NOINDEX, NOFOLLOW"><link rel=stylesheet href=/css/style.css><link rel=stylesheet href=/css/custom.css><link rel="shortcut icon" href=/images/favicon.ico type=image/x-icon><script async src="https://www.googletagmanager.com/gtag/js?id=G-JEBNMYFPPB"></script>
-<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-JEBNMYFPPB")</script></head><body><nav class=navigation><a href=/><span class=arrow>←</span>Home</a>
+I think untyped actors in the style of Akka Classic have always felt clunky in Java; Java used to lack a way to express pattern matching concisely. However, a few days ago I realized that Java 17 provides enough syntactic sugar to write shorter actors:"><meta name=generator content="Hugo 0.120.4"><meta name=ROBOTS content="NOINDEX, NOFOLLOW"><link rel=stylesheet href=/css/style.css><link rel=stylesheet href=/css/custom.css><link rel="shortcut icon" href=/images/favicon.ico type=image/x-icon><script async src="https://www.googletagmanager.com/gtag/js?id=G-JEBNMYFPPB"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-JEBNMYFPPB")</script></head><body><nav class=navigation><a href=/><span class=arrow>←</span>Home</a>
 <a href=/posts>Archive</a>
 <a href=/tags>Tags</a>
 <a href=/about>About</a></nav><main class=main><section id=single><h1 class=title>Learn You An Actor (System) For Great Good! (with Java 17, records, switch expressions and JBang)</h1><div class=tip><time datetime="2021-10-12 00:00:00 +0000 UTC">Oct 12, 2021</time>
-<span class=split>·</span>
-<span>4532 words</span>
-<span class=split>·</span>
-<span>22 minute read</span></div><div class=content><p>In 2012, <a href=https://viktorklang.com/ target=_blank rel=noopener>Viktor Klang</a> published a <a href=https://gist.github.com/viktorklang/2557678 target=_blank rel=noopener>tiny Java snippet</a> that implemented a tiny actor system in about<br>about 20 lines of code; a few years later, <a href=https://gist.github.com/viktorklang/2362563 target=_blank rel=noopener>a revised version</a> showed how to do the same in Scala.</p><div style=float:right><img src=/assets/actor/shakespeare.jpg alt="Whimsical sketch of Shakespeare"></div><p>I think untyped actors in the style of <a href=https://doc.akka.io/docs/akka/current/actors.html target=_blank rel=noopener>Akka Classic</a> have always felt clunky in Java;
+<span class=split>·
+</span><span>4532 words
+</span><span class=split>·
+</span><span>22 minute read</span></div><div class=content><p>In 2012, <a href=https://viktorklang.com/ target=_blank rel=noopener>Viktor Klang</a> published a <a href=https://gist.github.com/viktorklang/2557678 target=_blank rel=noopener>tiny Java snippet</a> that implemented a tiny actor system in about<br>about 20 lines of code; a few years later, <a href=https://gist.github.com/viktorklang/2362563 target=_blank rel=noopener>a revised version</a> showed how to do the same in Scala.</p><div style=float:right><img src=/assets/actor/shakespeare.jpg alt="Whimsical sketch of Shakespeare"></div><p>I think untyped actors in the style of <a href=https://doc.akka.io/docs/akka/current/actors.html target=_blank rel=noopener>Akka Classic</a> have always felt clunky in Java;
 Java used to lack a way to express pattern matching concisely.
 However, a few days ago I realized that Java 17 provides enough syntactic sugar
 to write shorter actors:</p><ol><li>messages can be concisely written using Java <strong>records</strong></li><li>the behavior of an actor can now leverage <strong>pattern matching</strong> and <strong>switch expressions</strong>!</li><li>as a bonus, the Java version of the snippet can be further simplified</li></ol><p>In the following I will explain what an actor system is, I will show you how
@@ -30,16 +30,16 @@ and finally, how to write the actor runtime using Java 17.</p><p><strong>This bl
 </span></span><span style=display:flex><span>    <span style=color:#00f>static</span> Effect Stay = old -&gt; old;
 </span></span><span style=display:flex><span>    <span style=color:#00f>static</span> Effect Die = Become(msg -&gt; { out.println(<span style=color:#a31515>&#34;Dropping msg [&#34;</span> + msg + <span style=color:#a31515>&#34;] due to severe case of death.&#34;</span>); <span style=color:#00f>return</span> Stay; });
 </span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    record System(ExecutorService executorService) {
+</span></span><span style=display:flex><span>    <span style=color:#00f>record</span> <span style=color:#2b91af>System</span>(ExecutorService executorService) {
 </span></span><span style=display:flex><span>        <span style=color:#00f>public</span> Address actorOf(Function&lt;Address, Behavior&gt; initial) {
 </span></span><span style=display:flex><span>            <span style=color:#00f>abstract</span> <span style=color:#00f>class</span> <span style=color:#2b91af>AtomicRunnableAddress</span> <span style=color:#00f>implements</span> Address, Runnable
 </span></span><span style=display:flex><span>                { <span style=color:#00f>final</span> AtomicInteger on = <span style=color:#00f>new</span> AtomicInteger(0); }
-</span></span><span style=display:flex><span>            var addr = <span style=color:#00f>new</span> AtomicRunnableAddress() {
+</span></span><span style=display:flex><span>            <span style=color:#00f>var</span> addr = <span style=color:#00f>new</span> AtomicRunnableAddress() {
 </span></span><span style=display:flex><span>                <span style=color:#00f>final</span> ConcurrentLinkedQueue&lt;Object&gt; mb = <span style=color:#00f>new</span> ConcurrentLinkedQueue&lt;&gt;();
 </span></span><span style=display:flex><span>                Behavior behavior = m -&gt; (m <span style=color:#00f>instanceof</span> Address self) ? Become(initial.apply(self)) : Stay;
 </span></span><span style=display:flex><span>                <span style=color:#00f>public</span> Address tell(Object msg) { mb.offer(msg); async(); <span style=color:#00f>return</span> <span style=color:#00f>this</span>; }
 </span></span><span style=display:flex><span>                <span style=color:#00f>public</span> <span style=color:#2b91af>void</span> run() {
-</span></span><span style=display:flex><span>                    <span style=color:#00f>try</span> { <span style=color:#00f>if</span> (on.get() == 1) { var m = mb.poll(); <span style=color:#00f>if</span> (m!=<span style=color:#00f>null</span>) { behavior = behavior.apply(m).apply(behavior); } }}
+</span></span><span style=display:flex><span>                    <span style=color:#00f>try</span> { <span style=color:#00f>if</span> (on.get() == 1) { <span style=color:#00f>var</span> m = mb.poll(); <span style=color:#00f>if</span> (m!=<span style=color:#00f>null</span>) { behavior = behavior.apply(m).apply(behavior); } }}
 </span></span><span style=display:flex><span>                    <span style=color:#00f>finally</span> { on.set(0); async(); }}
 </span></span><span style=display:flex><span>                <span style=color:#2b91af>void</span> async() {
 </span></span><span style=display:flex><span>                    <span style=color:#00f>if</span> (!mb.isEmpty() &amp;&amp; on.compareAndSet(0, 1)) {
@@ -57,8 +57,8 @@ and finally, how to write the actor runtime using Java 17.</p><p><strong>This bl
 </code></pre><p>Now, JEP-330 only runs single-source files. You will be able to run all the following examples by pasting the code in the same source file as the <a href=https://github.com/evacchi/min-java-actors/blob/main/src/main/java/io/github/evacchi/Actor.java target=_blank rel=noopener><code>min-java-actors</code> source code</a> and then run them through <code>java</code>.</p><p>But, with JBang, you will be able to point it to the Gist, and it will take care of all the rest, including downloading JDK 17, if you don&rsquo;t have it installed! That&rsquo;s nifty!</p><h2 id=a-bit-of-boilerplate>A Bit of Boilerplate <a href=#a-bit-of-boilerplate class=anchor>🔗</a></h2><p>You may have noticed that our tiny actor runtime is all defined within an <code>Actor</code> interface:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>public</span> <span style=color:#00f>interface</span> <span style=color:#2b91af>Actor</span> {
 </span></span></code></pre></div><p>This may look like a bizarre choice: why not <code>class</code> ?</p><p>As you know, a Java <strong>public type declaration</strong> (i.e. <code>class</code>, <code>record</code> <code>enum</code> or <code>interface</code>)
 must be usually declared in its own separate file.</p><p>If you declare your types as package-private (i.e. you don&rsquo;t specify an explicit visibility modifier)
-then you can write as many as you want in the same compilation unit. For instance:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:green>// SomeName.java
-</span></span></span><span style=display:flex><span><span style=color:green></span><span style=color:#00f>class</span> <span style=color:#2b91af>A</span> {}
+then you can write as many as you want in the same compilation unit. For instance:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:green>// SomeName.java</span>
+</span></span><span style=display:flex><span><span style=color:#00f>class</span> <span style=color:#2b91af>A</span> {}
 </span></span><span style=display:flex><span><span style=color:#00f>class</span> <span style=color:#2b91af>B</span> {}
 </span></span><span style=display:flex><span><span style=color:#00f>interface</span> <span style=color:#2b91af>C</span> {}
 </span></span></code></pre></div><p>The downside is that you cannot declare top-level <strong>static fields</strong>.
@@ -73,10 +73,10 @@ as <code>public</code>; this of course allows you to have fields:</p><div class=
 which in our case will not be what we want. So this is still quite verbose.</p><p>A lesser-known fact is that <code>interface</code> definitions allow public members
 other than instance methods; the defaults for such members are different than those for classes
 and they allow you to omit a lot of keywords:</p><ul><li>every field in an interface is <code>public</code> <code>static</code> <code>final</code>,</li><li>every <code>class</code>, <code>interface</code>, <code>record</code> or <code>enum</code> is <code>public</code> <code>static</code></li><li>every <code>static</code> method is also <code>public</code></li></ul><p>Thus you can write:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>public</span> <span style=color:#00f>interface</span> <span style=color:#2b91af>Actor</span> {
-</span></span><span style=display:flex><span>    <span style=color:#00f>class</span> <span style=color:#2b91af>B</span> {}       <span style=color:green>// this is public static
-</span></span></span><span style=display:flex><span><span style=color:green></span>    <span style=color:#00f>static</span> <span style=color:#2b91af>void</span> f(); <span style=color:green>// this is public static 
-</span></span></span><span style=display:flex><span><span style=color:green></span>    String Foo = <span style=color:#a31515>&#34;&#34;</span>; <span style=color:green>// this is public static final
-</span></span></span><span style=display:flex><span><span style=color:green></span>}
+</span></span><span style=display:flex><span>    <span style=color:#00f>class</span> <span style=color:#2b91af>B</span> {}       <span style=color:green>// this is public static</span>
+</span></span><span style=display:flex><span>    <span style=color:#00f>static</span> <span style=color:#2b91af>void</span> f(); <span style=color:green>// this is public static </span>
+</span></span><span style=display:flex><span>    String Foo = <span style=color:#a31515>&#34;&#34;</span>; <span style=color:green>// this is public static final</span>
+</span></span><span style=display:flex><span>}
 </span></span></code></pre></div><p>In the following, we will assume that all the code is nested in <code>public interface Actor {}</code></p><h2 id=the-actor-model>The Actor Model <a href=#the-actor-model class=anchor>🔗</a></h2><p>I am going to lift the definition from <a href=https://en.wikipedia.org/wiki/Actor_model#Fundamental_concepts target=_blank rel=noopener>Wikipedia</a>:</p><blockquote><p>An actor is a computational entity that, in response to a message it receives, can
 concurrently:</p><ol><li>send a finite number of messages to other actors;</li><li>create a finite number of new actors;</li><li>designate the behavior to be used for the next message it receives.</li></ol></blockquote><h3 id=behaviors-and-effects>Behaviors and Effects <a href=#behaviors-and-effects class=anchor>🔗</a></h3><p>Implementation-wise, the behavior of an actor is a function that consumes a message
 and returns the &ldquo;next&rdquo;. In the body of this function, the actor usually
@@ -89,8 +89,8 @@ Instead of being evaluated synchronously, the routine is &ldquo;posted&rdquo; a 
 The message stays in such a message queue (called sometimes a mailbox),
 until the actor is woken up by the runtime. When the actor is awake, then
 the runtime picks a message from the top of the mailbox and dispatches it
-to the routine (i.e. it invokes that routine with that message).</p><p>The routine is always of the form:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>Function&lt;Object, Effect&gt; <span style=color:green>// Behavior
-</span></span></span></code></pre></div><p>In other words, the <code>Behavior</code> of an actor is to receive a message of some type
+to the routine (i.e. it invokes that routine with that message).</p><p>The routine is always of the form:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>Function&lt;Object, Effect&gt; <span style=color:green>// Behavior</span>
+</span></span></code></pre></div><p>In other words, the <code>Behavior</code> of an actor is to receive a message of some type
 and then return an <code>Effect</code>. We can send any type of object so we just use
 <code>Object</code>. An <code>Effect</code> would be a way to describe a <em>transition</em> between two
 states of the actor.</p><p>It can be represented as a <em>function</em> that takes the current <code>Behavior</code> and
@@ -102,9 +102,9 @@ Other languages, such as Scala provides facilities to give a synonym
 to a type, an &ldquo;alias&rdquo; (<code>typedef</code> if you like C).</p><p>Even though extending an interface, in general, is not the same as aliasing,
 in the case of functional interfaces, it is kind of close,
 because you can always convert between different types if the signatures
-match (it is a form of &ldquo;structural&rdquo; typing if you will.)</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>Function&lt;Object, Effect&gt; f = x -&gt; ...; <span style=color:green>// not a Behavior
-</span></span></span><span style=display:flex><span><span style=color:green></span>Behavior = f::apply; <span style=color:green>// ooh, that&#39;s a Behavior!  
-</span></span></span></code></pre></div><p>In fact, you could also define <code>Behavior</code> explicitly:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>interface</span> <span style=color:#2b91af>Behavior</span> {
+match (it is a form of &ldquo;structural&rdquo; typing if you will.)</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>Function&lt;Object, Effect&gt; f = x -&gt; ...; <span style=color:green>// not a Behavior</span>
+</span></span><span style=display:flex><span>Behavior = f::apply; <span style=color:green>// ooh, that&#39;s a Behavior!  </span>
+</span></span></code></pre></div><p>In fact, you could also define <code>Behavior</code> explicitly:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>interface</span> <span style=color:#2b91af>Behavior</span> {
 </span></span><span style=display:flex><span>    Effect receive(Object message);
 </span></span><span style=display:flex><span>}
 </span></span></code></pre></div><p>The most basic <code>Effect</code>s (state transitions) are <code>Stay</code> and <code>Die</code>:</p><ul><li><code>Stay</code> means no behavioral change</li><li><code>Die</code> will effectively turn off the actor, making it inactive.</li></ul><p>For instance, this is a valid behavior for an actor that
@@ -126,10 +126,10 @@ We could be more specific and always expect a message of a particular subtype, e
 </span></span></code></pre></div><p>But we will keep it simple for now.</p><h3 id=example-1-a-hello-world>Example 1: A Hello World <a href=#example-1-a-hello-world class=anchor>🔗</a></h3><blockquote><p>You can run the following example with:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-sh data-lang=sh><span style=display:flex><span>j! https://gist.github.com/evacchi/40b19b0e116f3ce8f635787e0be79c95
 </span></span></code></pre></div></blockquote><p>In this example we will create an actor system,
 then spawn an actor that will process one message and then <code>Die</code>.
-You will recognize the behavior <code>receiveThenDie</code> that we defined above.</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:green>// create an actor runtime (an actor &#34;system&#34;)
-</span></span></span><span style=display:flex><span><span style=color:green></span>Actor.System actorSystem = <span style=color:#00f>new</span> Actor.System(Executors.newCachedThreadPool());
-</span></span><span style=display:flex><span><span style=color:green>// create an actor
-</span></span></span><span style=display:flex><span><span style=color:green></span>Address actor = actorSystem.actorOf(self -&gt; msg -&gt; {
+You will recognize the behavior <code>receiveThenDie</code> that we defined above.</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:green>// create an actor runtime (an actor &#34;system&#34;)</span>
+</span></span><span style=display:flex><span>Actor.System actorSystem = <span style=color:#00f>new</span> Actor.System(Executors.newCachedThreadPool());
+</span></span><span style=display:flex><span><span style=color:green>// create an actor</span>
+</span></span><span style=display:flex><span>Address actor = actorSystem.actorOf(self -&gt; msg -&gt; {
 </span></span><span style=display:flex><span>    out.println(<span style=color:#a31515>&#34;self: &#34;</span> + self + <span style=color:#a31515>&#34; got msg &#34;</span> + msg);
 </span></span><span style=display:flex><span>    <span style=color:#00f>return</span> Actor.Die;
 </span></span><span style=display:flex><span>});
@@ -139,7 +139,7 @@ You will recognize the behavior <code>receiveThenDie</code> that we defined abov
 </span></span></code></pre></div><p>or just:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>actor.tell(<span style=color:#a31515>&#34;foo&#34;</span>).tell(<span style=color:#a31515>&#34;bar&#34;</span>);
 </span></span></code></pre></div><p>which, when executed, prints the following:</p><pre tabindex=0><code>self: io.github.evacchi.Actor$System$1@198a98aa got msg foo
 Dropping msg [bar] due to severe case of death.
-</code></pre><p>because the <code>"bar"</code> message was sent to a dead actor.</p><p>If we change the lambda to return <code>stay</code> instead:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>var actor = actorSystem.actorOf(self -&gt; msg -&gt; {
+</code></pre><p>because the <code>"bar"</code> message was sent to a dead actor.</p><p>If we change the lambda to return <code>stay</code> instead:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>var</span> actor = actorSystem.actorOf(self -&gt; msg -&gt; {
 </span></span><span style=display:flex><span>    out.println(<span style=color:#a31515>&#34;self: &#34;</span> + self + <span style=color:#a31515>&#34; got msg &#34;</span> + msg);
 </span></span><span style=display:flex><span>    <span style=color:#00f>return</span> Actor.Stay;
 </span></span><span style=display:flex><span>});
@@ -168,14 +168,14 @@ In Java versions before 17, <code>switch</code> expression and pattern matching
 support was experimental; in general, they are very recent additions
 (<a href=https://openjdk.java.net/jeps/305 target=_blank rel=noopener>JEP-305</a> and <a href=https://openjdk.java.net/jeps/361 target=_blank rel=noopener>JEP-361</a> both delivered in JDK 14).</p><p>In a classic example actor example, one actor sends a &ldquo;ping&rdquo; to another;
 the second replies with a &ldquo;pong&rdquo;, and they go on back and forth.</p><p>In order to make this more interesting (and also not to loop indefinitely):</p><ul><li>one of the actors (the <code>ponger</code>) will receive <code>Ping</code> and reply with <code>Pong</code>;</li><li>it will also count 10 <code>Ping</code>s, then <code>Die</code>;</li><li>upon reaching 10 and before it <code>Die</code>s, the <code>pinger</code>
-will also send a message (<code>DeadlyPong</code>) to the <code>ponger</code></li><li>the <code>pinger</code> receives <code>Ping</code> and replies with <code>Pong</code></li><li>when it receives a <code>DeadlyPong</code> it <code>Die</code>s.</li></ul><p>First, we define the <code>Ping</code>, <code>Pong</code> messages, with the <code>Address</code> of the sender.</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>record Ping(Address sender) {}
-</span></span><span style=display:flex><span>record Pong(Address sender) {}
+will also send a message (<code>DeadlyPong</code>) to the <code>ponger</code></li><li>the <code>pinger</code> receives <code>Ping</code> and replies with <code>Pong</code></li><li>when it receives a <code>DeadlyPong</code> it <code>Die</code>s.</li></ul><p>First, we define the <code>Ping</code>, <code>Pong</code> messages, with the <code>Address</code> of the sender.</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>record</span> <span style=color:#2b91af>Ping</span>(Address sender) {}
+</span></span><span style=display:flex><span><span style=color:#00f>record</span> <span style=color:#2b91af>Pong</span>(Address sender) {}
 </span></span></code></pre></div><p>We also define the <code>DeadlyPong</code> variant for <code>Pong</code>. This will be sent to the <code>ponger</code>
-when the <code>pinger</code> is about to shut off.</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>record DeadlyPong(Address sender) {}
+when the <code>pinger</code> is about to shut off.</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>record</span> <span style=color:#2b91af>DeadlyPong</span>(Address sender) {}
 </span></span></code></pre></div><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#2b91af>void</span> run() {
-</span></span><span style=display:flex><span>    var actorSystem = <span style=color:#00f>new</span> Actor.System(Executors.newCachedThreadPool());
-</span></span><span style=display:flex><span>    var ponger = actorSystem.actorOf(self -&gt; msg -&gt; pongerBehavior(self, msg, 0));
-</span></span><span style=display:flex><span>    var pinger = actorSystem.actorOf(self -&gt; msg -&gt; pingerBehavior(self, msg));
+</span></span><span style=display:flex><span>    <span style=color:#00f>var</span> actorSystem = <span style=color:#00f>new</span> Actor.System(Executors.newCachedThreadPool());
+</span></span><span style=display:flex><span>    <span style=color:#00f>var</span> ponger = actorSystem.actorOf(self -&gt; msg -&gt; pongerBehavior(self, msg, 0));
+</span></span><span style=display:flex><span>    <span style=color:#00f>var</span> pinger = actorSystem.actorOf(self -&gt; msg -&gt; pingerBehavior(self, msg));
 </span></span><span style=display:flex><span>    ponger.tell(<span style=color:#00f>new</span> Ping(pinger));
 </span></span><span style=display:flex><span>}
 </span></span><span style=display:flex><span>Effect pongerBehavior(Address self, Object msg, <span style=color:#2b91af>int</span> counter) {
@@ -183,12 +183,12 @@ when the <code>pinger</code> is about to shut off.</p><div class=highlight><pre 
 </span></span><span style=display:flex><span>        <span style=color:#00f>case</span> Ping p &amp;&amp; counter &lt; 10 -&gt; {
 </span></span><span style=display:flex><span>            out.println(<span style=color:#a31515>&#34;ping! 👉&#34;</span>);
 </span></span><span style=display:flex><span>            p.sender().tell(<span style=color:#00f>new</span> Pong(self));
-</span></span><span style=display:flex><span>            yield Become(m -&gt; pongerBehavior(self, m, counter + 1));
+</span></span><span style=display:flex><span>            <span style=color:#00f>yield</span> Become(m -&gt; pongerBehavior(self, m, counter + 1));
 </span></span><span style=display:flex><span>        }
 </span></span><span style=display:flex><span>        <span style=color:#00f>case</span> Ping p -&gt; {
 </span></span><span style=display:flex><span>            out.println(<span style=color:#a31515>&#34;ping! 💀&#34;</span>);
 </span></span><span style=display:flex><span>            p.sender().tell(<span style=color:#00f>new</span> DeadlyPong(self));
-</span></span><span style=display:flex><span>            yield Die;
+</span></span><span style=display:flex><span>            <span style=color:#00f>yield</span> Die;
 </span></span><span style=display:flex><span>        }
 </span></span><span style=display:flex><span>        <span style=color:#00f>default</span> -&gt; Stay;
 </span></span><span style=display:flex><span>    };
@@ -198,12 +198,12 @@ when the <code>pinger</code> is about to shut off.</p><div class=highlight><pre 
 </span></span><span style=display:flex><span>        <span style=color:#00f>case</span> Pong p -&gt; {
 </span></span><span style=display:flex><span>            out.println(<span style=color:#a31515>&#34;pong! 👈&#34;</span>);
 </span></span><span style=display:flex><span>            p.sender().tell(<span style=color:#00f>new</span> Ping(self));
-</span></span><span style=display:flex><span>            yield Stay;
+</span></span><span style=display:flex><span>            <span style=color:#00f>yield</span> Stay;
 </span></span><span style=display:flex><span>        }
 </span></span><span style=display:flex><span>        <span style=color:#00f>case</span> DeadlyPong p -&gt; {
 </span></span><span style=display:flex><span>            out.println(<span style=color:#a31515>&#34;pong! 😵&#34;</span>);
 </span></span><span style=display:flex><span>            p.sender().tell(<span style=color:#00f>new</span> Ping(self));
-</span></span><span style=display:flex><span>            yield Die;
+</span></span><span style=display:flex><span>            <span style=color:#00f>yield</span> Die;
 </span></span><span style=display:flex><span>        }
 </span></span><span style=display:flex><span>        <span style=color:#00f>default</span> -&gt; Stay;
 </span></span><span style=display:flex><span>    };
@@ -236,25 +236,25 @@ Dropping msg [Ping[sender=io.github.evacchi.Actor$System$1@3b9c1475]] due to sev
 on any variable or field that is in scope including the matched value (<code>p</code> in this case). This is still
 a preview feature, so it requires the <code>--enable-preview</code> flag.</p><h4 id=ignored-messages>Ignored Messages <a href=#ignored-messages class=anchor>🔗</a></h4><p>You may have noticed that all our switches have a <code>default</code> case. This is because
 any type of message is allowed; in fact, recall the <code>Address</code> interface and the signature of <code>tell()</code>:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>interface</span> <span style=color:#2b91af>Address</span> { Address tell(Object msg); }
-</span></span></code></pre></div><p>If we send an object of a type that is not handled, it will just be silently swallowed:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>    ponger.tell(<span style=color:#a31515>&#34;Hey hello&#34;</span>); <span style=color:green>// prints nothing
-</span></span></span></code></pre></div><p>In order to keep these examples simple we just ignored the message;
+</span></span></code></pre></div><p>If we send an object of a type that is not handled, it will just be silently swallowed:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>    ponger.tell(<span style=color:#a31515>&#34;Hey hello&#34;</span>); <span style=color:green>// prints nothing</span>
+</span></span></code></pre></div><p>In order to keep these examples simple we just ignored the message;
 you may want to add some logging to the <code>default</code> case, instead:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>    <span style=color:#00f>return</span> <span style=color:#00f>switch</span> (msg) {
 </span></span><span style=display:flex><span>        <span style=color:#00f>case</span> ...
 </span></span><span style=display:flex><span>        <span style=color:#00f>default</span> -&gt; {
 </span></span><span style=display:flex><span>            out.println(<span style=color:#a31515>&#34;Ignoring unknown message: &#34;</span> + msg);
-</span></span><span style=display:flex><span>            yield Stay;
+</span></span><span style=display:flex><span>            <span style=color:#00f>yield</span> Stay;
 </span></span><span style=display:flex><span>        }
 </span></span><span style=display:flex><span>    };
 </span></span></code></pre></div><h4 id=closures-vs-classes>Closures vs Classes <a href=#closures-vs-classes class=anchor>🔗</a></h4><p>Notice how the traditional way to increase a counter is to create a closure with the value:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#2b91af>void</span> run() {
 </span></span><span style=display:flex><span>    ...
-</span></span><span style=display:flex><span>    var ponger = actorSystem.actorOf(self -&gt; msg -&gt; pongerBehavior(self, msg, 0));
+</span></span><span style=display:flex><span>    <span style=color:#00f>var</span> ponger = actorSystem.actorOf(self -&gt; msg -&gt; pongerBehavior(self, msg, 0));
 </span></span><span style=display:flex><span>    ...
 </span></span><span style=display:flex><span>}
 </span></span><span style=display:flex><span>Effect pongerBehavior(Address self, Object msg, <span style=color:#2b91af>int</span> counter) {
 </span></span><span style=display:flex><span>    <span style=color:#00f>return</span> <span style=color:#00f>switch</span> (msg) {
 </span></span><span style=display:flex><span>        <span style=color:#00f>case</span> Ping p &amp;&amp; counter &lt; 10 -&gt; {
 </span></span><span style=display:flex><span>            ...
-</span></span><span style=display:flex><span>            yield Become(m -&gt; pongerBehavior(self, m, counter + 1));
+</span></span><span style=display:flex><span>            <span style=color:#00f>yield</span> Become(m -&gt; pongerBehavior(self, m, counter + 1));
 </span></span><span style=display:flex><span>        }
 </span></span><span style=display:flex><span>        ...
 </span></span><span style=display:flex><span>    }
@@ -263,7 +263,7 @@ you may want to add some logging to the <code>default</code> case, instead:</p><
 because the state of an actor is guaranteed to execute in a thread-safe environment.
 In this case we could have written:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#2b91af>void</span> run() {
 </span></span><span style=display:flex><span>    ...
-</span></span><span style=display:flex><span>    var ponger = actorSystem.actorOf(StatefulPonger::<span style=color:#00f>new</span>);
+</span></span><span style=display:flex><span>    <span style=color:#00f>var</span> ponger = actorSystem.actorOf(StatefulPonger::<span style=color:#00f>new</span>);
 </span></span><span style=display:flex><span>    ...
 </span></span><span style=display:flex><span>}
 </span></span><span style=display:flex><span><span style=color:#00f>class</span> <span style=color:#2b91af>StatefulPonger</span> <span style=color:#00f>implements</span> Behavior {
@@ -275,12 +275,12 @@ In this case we could have written:</p><div class=highlight><pre tabindex=0 styl
 </span></span><span style=display:flex><span>                out.println(<span style=color:#a31515>&#34;ping! 👉&#34;</span>);
 </span></span><span style=display:flex><span>                p.sender().tell(<span style=color:#00f>new</span> Pong(self));
 </span></span><span style=display:flex><span>                <span style=color:#00f>this</span>.counter++;
-</span></span><span style=display:flex><span>                yield Stay;
+</span></span><span style=display:flex><span>                <span style=color:#00f>yield</span> Stay;
 </span></span><span style=display:flex><span>            }
 </span></span><span style=display:flex><span>            <span style=color:#00f>case</span> Ping p -&gt; {
 </span></span><span style=display:flex><span>                out.println(<span style=color:#a31515>&#34;ping! 💀&#34;</span>);
 </span></span><span style=display:flex><span>                p.sender().tell(<span style=color:#00f>new</span> DeadlyPong(self));
-</span></span><span style=display:flex><span>                yield Die;
+</span></span><span style=display:flex><span>                <span style=color:#00f>yield</span> Die;
 </span></span><span style=display:flex><span>            }
 </span></span><span style=display:flex><span>            <span style=color:#00f>default</span> -&gt; Stay;
 </span></span><span style=display:flex><span>        };
@@ -290,46 +290,46 @@ In this case we could have written:</p><div class=highlight><pre tabindex=0 styl
 </span></span></code></pre></div></blockquote><div style=float:right><img src=/assets/actor/vending.jpg alt="A drawing of a vending machine"></div><p>In the previous example, we saw how we can use actors to maintain mutable state.</p><p>But we also saw that when an actor receives a message it returns an <code>Effect</code>; that is, a <em>transition</em>
 to a different behavior. So far we only only used two built-in effects: <code>Stay</code> and <code>Die</code>.
 But we can use the <code>Become</code> mechanism to change the behavior of our actors upon receiving a message. In other words, actors can be used to implement <em>state machines</em>.</p><p>A classic example of a state machine is the <em>vending machine</em>: a vending machine awaits for a specific amount of coins before it allows to pick a choice. Let us implement a simple vending machine using our actor runtime.</p><p>Suppose that you are developing a vending machine that waits for you
-to insert an amount of 100 before you can pick a choice. Then you can pick your choice and your item will be retrieved. For simplicity, we assume that each coin has a value between 1 and 100.</p><div><img src=/assets/actor/diag-vend.png alt="Diagram of the state machine"></div><p>The messages will be:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>record Coin(<span style=color:#2b91af>int</span> amount){
+to insert an amount of 100 before you can pick a choice. Then you can pick your choice and your item will be retrieved. For simplicity, we assume that each coin has a value between 1 and 100.</p><div><img src=/assets/actor/diag-vend.png alt="Diagram of the state machine"></div><p>The messages will be:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>record</span> <span style=color:#2b91af>Coin</span>(<span style=color:#2b91af>int</span> amount){
 </span></span><span style=display:flex><span>    <span style=color:#00f>public</span> Coin {
 </span></span><span style=display:flex><span>        <span style=color:#00f>if</span> (amount &lt; 1 &amp;&amp; amount &gt; 100)
 </span></span><span style=display:flex><span>            <span style=color:#00f>throw</span> <span style=color:#00f>new</span> AssertionError(<span style=color:#a31515>&#34;1 &lt;= amount &lt; 100&#34;</span>); } 
 </span></span><span style=display:flex><span>}
-</span></span><span style=display:flex><span>record Choice(String product){}
+</span></span><span style=display:flex><span><span style=color:#00f>record</span> <span style=color:#2b91af>Choice</span>(String product){}
 </span></span></code></pre></div><p>And the behavior will be:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>Effect initial(Object message) {
 </span></span><span style=display:flex><span>    <span style=color:#00f>return</span> <span style=color:#00f>switch</span>(message) {
 </span></span><span style=display:flex><span>        <span style=color:#00f>case</span> Coin c -&gt; {
 </span></span><span style=display:flex><span>            out.println(<span style=color:#a31515>&#34;Received first coin: &#34;</span> + c.amount);
-</span></span><span style=display:flex><span>            yield Become(m -&gt; waitCoin(m, c.amount()));
+</span></span><span style=display:flex><span>            <span style=color:#00f>yield</span> Become(m -&gt; waitCoin(m, c.amount()));
 </span></span><span style=display:flex><span>        }
-</span></span><span style=display:flex><span>        <span style=color:#00f>default</span> -&gt; Stay; <span style=color:green>// ignore message, stay in this state
-</span></span></span><span style=display:flex><span><span style=color:green></span>    };
+</span></span><span style=display:flex><span>        <span style=color:#00f>default</span> -&gt; Stay; <span style=color:green>// ignore message, stay in this state</span>
+</span></span><span style=display:flex><span>    };
 </span></span><span style=display:flex><span>}
 </span></span><span style=display:flex><span>Effect waitCoin(Object message, <span style=color:#2b91af>int</span> counter) {
 </span></span><span style=display:flex><span>    <span style=color:#00f>return</span> <span style=color:#00f>switch</span>(message) {
 </span></span><span style=display:flex><span>        <span style=color:#00f>case</span> Coin c &amp;&amp; counter + c.amount() &lt; 100 -&gt; {
-</span></span><span style=display:flex><span>            var count = counter + c.amount();
+</span></span><span style=display:flex><span>            <span style=color:#00f>var</span> count = counter + c.amount();
 </span></span><span style=display:flex><span>            out.println(<span style=color:#a31515>&#34;Received coin: &#34;</span> + count + <span style=color:#a31515>&#34; of 100&#34;</span>);
-</span></span><span style=display:flex><span>            yield Become(m -&gt; waitCoin(m, count));
+</span></span><span style=display:flex><span>            <span style=color:#00f>yield</span> Become(m -&gt; waitCoin(m, count));
 </span></span><span style=display:flex><span>        }
 </span></span><span style=display:flex><span>        <span style=color:#00f>case</span> Coin c -&gt; {
-</span></span><span style=display:flex><span>            var count = counter + c.amount();
+</span></span><span style=display:flex><span>            <span style=color:#00f>var</span> count = counter + c.amount();
 </span></span><span style=display:flex><span>            out.println(<span style=color:#a31515>&#34;Received last coin: &#34;</span> + count + <span style=color:#a31515>&#34; of 100&#34;</span>);
-</span></span><span style=display:flex><span>            var change = counter + c.amount() - 100;
-</span></span><span style=display:flex><span>            yield Become(m -&gt; vend(m, change));
+</span></span><span style=display:flex><span>            <span style=color:#00f>var</span> change = counter + c.amount() - 100;
+</span></span><span style=display:flex><span>            <span style=color:#00f>yield</span> Become(m -&gt; vend(m, change));
 </span></span><span style=display:flex><span>        }
-</span></span><span style=display:flex><span>        <span style=color:#00f>default</span> -&gt; Stay; <span style=color:green>// ignore message, stay in this state
-</span></span></span><span style=display:flex><span><span style=color:green></span>    };
+</span></span><span style=display:flex><span>        <span style=color:#00f>default</span> -&gt; Stay; <span style=color:green>// ignore message, stay in this state</span>
+</span></span><span style=display:flex><span>    };
 </span></span><span style=display:flex><span>}
 </span></span><span style=display:flex><span>Effect vend(Object message, <span style=color:#2b91af>int</span> change) {
 </span></span><span style=display:flex><span>    <span style=color:#00f>return</span> <span style=color:#00f>switch</span>(message) {
 </span></span><span style=display:flex><span>        <span style=color:#00f>case</span> Choice c -&gt; {
 </span></span><span style=display:flex><span>            vendProduct(c.product());
 </span></span><span style=display:flex><span>            releaseChange(change);
-</span></span><span style=display:flex><span>            yield Become(<span style=color:#00f>this</span>::initial);
+</span></span><span style=display:flex><span>            <span style=color:#00f>yield</span> Become(<span style=color:#00f>this</span>::initial);
 </span></span><span style=display:flex><span>        }
-</span></span><span style=display:flex><span>        <span style=color:#00f>default</span> -&gt; Stay; <span style=color:green>// ignore message, stay in this state
-</span></span></span><span style=display:flex><span><span style=color:green></span>    };
+</span></span><span style=display:flex><span>        <span style=color:#00f>default</span> -&gt; Stay; <span style=color:green>// ignore message, stay in this state</span>
+</span></span><span style=display:flex><span>    };
 </span></span><span style=display:flex><span>}
 </span></span><span style=display:flex><span>
 </span></span><span style=display:flex><span><span style=color:#2b91af>void</span> vendProduct(String product) {
@@ -339,8 +339,8 @@ to insert an amount of 100 before you can pick a choice. Then you can pick your 
 </span></span><span style=display:flex><span><span style=color:#2b91af>void</span> releaseChange(<span style=color:#2b91af>int</span> change) {
 </span></span><span style=display:flex><span>    out.println(<span style=color:#a31515>&#34;CHANGE: &#34;</span> + change);
 </span></span><span style=display:flex><span>}
-</span></span></code></pre></div><p>This actor may be created by an actor system by passing the initial state:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>var actorSystem = <span style=color:#00f>new</span> Actor.System(Executors.newCachedThreadPool());
-</span></span><span style=display:flex><span>var vendingMachine = actorSystem.actorOf(self -&gt; msg -&gt; initial(msg));
+</span></span></code></pre></div><p>This actor may be created by an actor system by passing the initial state:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>var</span> actorSystem = <span style=color:#00f>new</span> Actor.System(Executors.newCachedThreadPool());
+</span></span><span style=display:flex><span><span style=color:#00f>var</span> vendingMachine = actorSystem.actorOf(self -&gt; msg -&gt; initial(msg));
 </span></span></code></pre></div><p>and then started with:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>vendingMachine.tell(<span style=color:#00f>new</span> Coin(50))
 </span></span><span style=display:flex><span>              .tell(<span style=color:#00f>new</span> Coin(40))
 </span></span><span style=display:flex><span>              .tell(<span style=color:#00f>new</span> Coin(30))
@@ -351,36 +351,36 @@ Received last coin: 120 of 100
 VENDING: Chocolate
 CHANGE: 20
 </code></pre><p>If an action is costly (e.g. blocking), an actor may decide to spawn another actor
-to serve that action. For instance:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>record VendItem(String product){}
-</span></span><span style=display:flex><span>record ReleaseChange(<span style=color:#2b91af>int</span> amount){}
+to serve that action. For instance:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>record</span> <span style=color:#2b91af>VendItem</span>(String product){}
+</span></span><span style=display:flex><span><span style=color:#00f>record</span> <span style=color:#2b91af>ReleaseChange</span>(<span style=color:#2b91af>int</span> amount){}
 </span></span><span style=display:flex><span>
 </span></span><span style=display:flex><span>Effect vend(Object message, <span style=color:#2b91af>int</span> change) {
 </span></span><span style=display:flex><span>    <span style=color:#00f>return</span> <span style=color:#00f>switch</span>(message) {
 </span></span><span style=display:flex><span>        <span style=color:#00f>case</span> Choice c -&gt; {
-</span></span><span style=display:flex><span>            var vendActor = system.actorOf(self -&gt; m -&gt; vendProduct(m));
+</span></span><span style=display:flex><span>            <span style=color:#00f>var</span> vendActor = system.actorOf(self -&gt; m -&gt; vendProduct(m));
 </span></span><span style=display:flex><span>            vendActor.tell(<span style=color:#00f>new</span> VendItem(c.product()))
-</span></span><span style=display:flex><span>            var releaseActor = system.actorOf(self -&gt; m -&gt; release(m));
+</span></span><span style=display:flex><span>            <span style=color:#00f>var</span> releaseActor = system.actorOf(self -&gt; m -&gt; release(m));
 </span></span><span style=display:flex><span>            releaseActor.tell(<span style=color:#00f>new</span> ReleaseChange(change))
-</span></span><span style=display:flex><span>            yield Become(<span style=color:#00f>this</span>::initial);
+</span></span><span style=display:flex><span>            <span style=color:#00f>yield</span> Become(<span style=color:#00f>this</span>::initial);
 </span></span><span style=display:flex><span>        }
-</span></span><span style=display:flex><span>        <span style=color:#00f>default</span> -&gt; Stay; <span style=color:green>// ignore message, stay in this state
-</span></span></span><span style=display:flex><span><span style=color:green></span>        ...
+</span></span><span style=display:flex><span>        <span style=color:#00f>default</span> -&gt; Stay; <span style=color:green>// ignore message, stay in this state</span>
+</span></span><span style=display:flex><span>        ...
 </span></span><span style=display:flex><span>    }
 </span></span><span style=display:flex><span>}
 </span></span><span style=display:flex><span>Effect vendItem(Object message) {
 </span></span><span style=display:flex><span>    <span style=color:#00f>return</span> <span style=color:#00f>switch</span> (message) {
 </span></span><span style=display:flex><span>        <span style=color:#00f>case</span> VendItem item -&gt; {
-</span></span><span style=display:flex><span>            <span style=color:green>// ... vend the item ...
-</span></span></span><span style=display:flex><span><span style=color:green></span>            yield Die <span style=color:green>// we no longer need to stay alive.
-</span></span></span><span style=display:flex><span><span style=color:green></span>        }
+</span></span><span style=display:flex><span>            <span style=color:green>// ... vend the item ...</span>
+</span></span><span style=display:flex><span>            <span style=color:#00f>yield</span> Die <span style=color:green>// we no longer need to stay alive.</span>
+</span></span><span style=display:flex><span>        }
 </span></span><span style=display:flex><span>    }
 </span></span><span style=display:flex><span>}
 </span></span><span style=display:flex><span>Effect release(Object message, <span style=color:#2b91af>int</span> change) {
 </span></span><span style=display:flex><span>    <span style=color:#00f>return</span> <span style=color:#00f>switch</span> (message) {
 </span></span><span style=display:flex><span>        <span style=color:#00f>case</span> ReleaseChange c -&gt; {
-</span></span><span style=display:flex><span>            <span style=color:green>// ... release the amount ...
-</span></span></span><span style=display:flex><span><span style=color:green></span>            yield Die <span style=color:green>// we no longer need to stay alive.
-</span></span></span><span style=display:flex><span><span style=color:green></span>        }
+</span></span><span style=display:flex><span>            <span style=color:green>// ... release the amount ...</span>
+</span></span><span style=display:flex><span>            <span style=color:#00f>yield</span> Die <span style=color:green>// we no longer need to stay alive.</span>
+</span></span><span style=display:flex><span>        }
 </span></span><span style=display:flex><span>    }
 </span></span><span style=display:flex><span>}
 </span></span></code></pre></div><h2 id=implementing-the-actor-system>Implementing The Actor System <a href=#implementing-the-actor-system class=anchor>🔗</a></h2><p>We are now ready to implement the actor system and execution environment.
@@ -396,15 +396,15 @@ the <code>implicit</code> feature to inject an <code>Executor</code> automatical
 </span></span><span style=display:flex><span>        Executor executor;
 </span></span><span style=display:flex><span>        <span style=color:#00f>public</span> System(Executor executor) { <span style=color:#00f>this</span>.executor = executor; }
 </span></span><span style=display:flex><span>        <span style=color:#00f>public</span> Address actorOf(Function&lt;Address, Behavior&gt; initial) {
-</span></span><span style=display:flex><span>           <span style=color:green>// ... references the executor ...
-</span></span></span><span style=display:flex><span><span style=color:green></span>        }
+</span></span><span style=display:flex><span>           <span style=color:green>// ... references the executor ...</span>
+</span></span><span style=display:flex><span>        }
 </span></span><span style=display:flex><span>    }
 </span></span><span style=display:flex><span>} 
 </span></span></code></pre></div><p>However, in order to keep the number of lines down, we can abuse the <code>record</code> construct so that we
-don&rsquo;t have to write an explicit constructor:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>record System(Executor executor) {
+don&rsquo;t have to write an explicit constructor:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>record</span> <span style=color:#2b91af>System</span>(Executor executor) {
 </span></span><span style=display:flex><span>    <span style=color:#00f>public</span> Address actorOf(Function&lt;Address, Behavior&gt; initial) {
-</span></span><span style=display:flex><span>        <span style=color:green>// ... references the executor ...
-</span></span></span><span style=display:flex><span><span style=color:green></span>    }
+</span></span><span style=display:flex><span>        <span style=color:green>// ... references the executor ...</span>
+</span></span><span style=display:flex><span>    }
 </span></span><span style=display:flex><span>}
 </span></span></code></pre></div><p>The original Scala code defines a private abstract class <code>AtomicRunnableAddress</code> .
 We picked <code>interface Actor</code> as the outer container. However <code>interface</code>s (currently) do not allow
@@ -415,25 +415,25 @@ anonymous class that implements two interfaces in the body of the <code>apply()<
 </span></span></span></code></pre></div><p>We can use another under-used feature of Java: local classes; i.e. a class that is local to the <em>body</em> of a method.
 So instead of:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>  <span style=color:#00f>abstract</span> <span style=color:#00f>class</span> <span style=color:#2b91af>AtomicRunnableAddress</span> <span style=color:#00f>implements</span> Address, Runnable
 </span></span><span style=display:flex><span>    { AtomicInteger on = <span style=color:#00f>new</span> AtomicInteger(0); }
-</span></span><span style=display:flex><span>  record System(ExecutorService executorService) {
+</span></span><span style=display:flex><span>  <span style=color:#00f>record</span> <span style=color:#2b91af>System</span>(ExecutorService executorService) {
 </span></span><span style=display:flex><span>        <span style=color:#00f>public</span> Address actorOf(Function&lt;Address, Behavior&gt; initial) {
-</span></span></code></pre></div><p>we write:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>  record System(ExecutorService executorService) {
-</span></span><span style=display:flex><span>        <span style=color:green>// Seeded by the self-reference that yields the initial behavior
-</span></span></span><span style=display:flex><span><span style=color:green></span>        <span style=color:#00f>public</span> Address actorOf(Function&lt;Address, Behavior&gt; initial) {
+</span></span></code></pre></div><p>we write:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>  <span style=color:#00f>record</span> <span style=color:#2b91af>System</span>(ExecutorService executorService) {
+</span></span><span style=display:flex><span>        <span style=color:green>// Seeded by the self-reference that yields the initial behavior</span>
+</span></span><span style=display:flex><span>        <span style=color:#00f>public</span> Address actorOf(Function&lt;Address, Behavior&gt; initial) {
 </span></span><span style=display:flex><span>            <span style=color:#00f>abstract</span> <span style=color:#00f>class</span> <span style=color:#2b91af>AtomicRunnableAddress</span> <span style=color:#00f>implements</span> Address, Runnable
 </span></span><span style=display:flex><span>                { AtomicInteger on = <span style=color:#00f>new</span> AtomicInteger(0); }
 </span></span></code></pre></div><p>which makes <code>AtomicRunnableAddress</code> private to that method (which is all we need).</p><p>We will use the <code>AtomicInteger</code> to turn on and off the actor (note: we could probably use an <code>AtomicBoolean</code>, but
-we are just following the original code).</p><p>we now create our object:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>var addr = <span style=color:#00f>new</span> AtomicRunnableAddress() {
-</span></span><span style=display:flex><span>    <span style=color:green>// the mailbox is just concurrent queue
-</span></span></span><span style=display:flex><span><span style=color:green></span>    <span style=color:#00f>final</span> ConcurrentLinkedQueue&lt;Object&gt; mbox = <span style=color:#00f>new</span> ConcurrentLinkedQueue&lt;&gt;();
-</span></span><span style=display:flex><span>    <span style=color:green>// current behavior is a mutable field.   
-</span></span></span><span style=display:flex><span><span style=color:green></span>    Behavior behavior = 
-</span></span><span style=display:flex><span>            <span style=color:green>// the initial behavior is to receive an address and then apply the initial behavior
-</span></span></span><span style=display:flex><span><span style=color:green></span>            m -&gt; { <span style=color:#00f>if</span> (m <span style=color:#00f>instanceof</span> Address self) <span style=color:#00f>return</span> <span style=color:#00f>new</span> Become(initial.apply(self)); <span style=color:#00f>else</span> <span style=color:#00f>return</span> Stay; };
+we are just following the original code).</p><p>we now create our object:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>var</span> addr = <span style=color:#00f>new</span> AtomicRunnableAddress() {
+</span></span><span style=display:flex><span>    <span style=color:green>// the mailbox is just concurrent queue</span>
+</span></span><span style=display:flex><span>    <span style=color:#00f>final</span> ConcurrentLinkedQueue&lt;Object&gt; mbox = <span style=color:#00f>new</span> ConcurrentLinkedQueue&lt;&gt;();
+</span></span><span style=display:flex><span>    <span style=color:green>// current behavior is a mutable field.   </span>
+</span></span><span style=display:flex><span>    Behavior behavior = 
+</span></span><span style=display:flex><span>            <span style=color:green>// the initial behavior is to receive an address and then apply the initial behavior</span>
+</span></span><span style=display:flex><span>            m -&gt; { <span style=color:#00f>if</span> (m <span style=color:#00f>instanceof</span> Address self) <span style=color:#00f>return</span> <span style=color:#00f>new</span> Become(initial.apply(self)); <span style=color:#00f>else</span> <span style=color:#00f>return</span> Stay; };
 </span></span><span style=display:flex><span>  ...
 </span></span><span style=display:flex><span>};
 </span></span><span style=display:flex><span>addr.tell(addr); 
-</span></span></code></pre></div><p>Here is the reason why our actors are created with this strange curried function:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>var actor = system.actorOf(self -&gt; msg -&gt; ...);
+</span></span></code></pre></div><p>Here is the reason why our actors are created with this strange curried function:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>var</span> actor = system.actorOf(self -&gt; msg -&gt; ...);
 </span></span></code></pre></div><p>the signature for the initial behavior is really: <code>Function&lt;Address, Behavior></code> which &ldquo;expands&rdquo; to</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>Function&lt;Address, Function&lt;Object, Effect&gt;&gt;
 </span></span></code></pre></div><p>or, to write it in a possibly more readable format:</p><pre tabindex=0><code>Address -&gt; Object -&gt; Effect
 // self -&gt; msg -&gt; ...
@@ -441,31 +441,31 @@ we are just following the original code).</p><p>we now create our object:</p><di
 can reference <code>self</code>. As we saw in <a href=#example-3-a-vending-machine>Example 3: A Vending Machine</a> this is often equivalent to writing a class
 that takes an <code>Address</code> in its constructor. And that is because <a href=http://people.csail.mit.edu/gregs/ll1-discuss-archive-html/msg03277.html target=_blank rel=noopener>&ldquo;a closure is a poor man’s object; an object is a poor man’s closure”</a>.</p><p>When the actor starts we send the address to itself:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>addr.tell(addr); 
 </span></span></code></pre></div><p>Let us now take a look at the <code>tell()</code> method; at its core we may write it as:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>public</span> <span style=color:#2b91af>void</span> tell(Object msg) {
-</span></span><span style=display:flex><span>    <span style=color:green>// put message in the mailbox
-</span></span></span><span style=display:flex><span><span style=color:green></span>    mb.offer(msg); 
+</span></span><span style=display:flex><span>    <span style=color:green>// put message in the mailbox</span>
+</span></span><span style=display:flex><span>    mb.offer(msg); 
 </span></span><span style=display:flex><span>    async(); 
 </span></span><span style=display:flex><span>}
 </span></span></code></pre></div><p>The async method verifies that the mbox contains an element and schedules the actor
 for execution on the <code>Executor</code>.</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#2b91af>void</span> async() {
-</span></span><span style=display:flex><span>    <span style=color:green>// if the mbox is non-empty and the actor is active
-</span></span></span><span style=display:flex><span><span style=color:green></span>    <span style=color:#00f>if</span> (!mb.isEmpty() &amp;&amp; on.getAndSet(1) == 0)) {
-</span></span><span style=display:flex><span>        <span style=color:green>// schedule to run on the Executor 
-</span></span></span><span style=display:flex><span><span style=color:green></span>        <span style=color:#00f>try</span> { executor.execute(<span style=color:#00f>this</span>); }
-</span></span><span style=display:flex><span>        <span style=color:green>// in case of error deactivate the actor and rethrow the exception
-</span></span></span><span style=display:flex><span><span style=color:green></span>        <span style=color:#00f>catch</span> (Throwable t) { on.set(0); <span style=color:#00f>throw</span> t; }
+</span></span><span style=display:flex><span>    <span style=color:green>// if the mbox is non-empty and the actor is active</span>
+</span></span><span style=display:flex><span>    <span style=color:#00f>if</span> (!mb.isEmpty() &amp;&amp; on.getAndSet(1) == 0)) {
+</span></span><span style=display:flex><span>        <span style=color:green>// schedule to run on the Executor </span>
+</span></span><span style=display:flex><span>        <span style=color:#00f>try</span> { executor.execute(<span style=color:#00f>this</span>); }
+</span></span><span style=display:flex><span>        <span style=color:green>// in case of error deactivate the actor and rethrow the exception</span>
+</span></span><span style=display:flex><span>        <span style=color:#00f>catch</span> (Throwable t) { on.set(0); <span style=color:#00f>throw</span> t; }
 </span></span><span style=display:flex><span>    }
 </span></span><span style=display:flex><span>}
 </span></span></code></pre></div><p>In order to be schedulable, the actor must be a <code>Runnable</code>, so here is the <code>run()</code> method:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>    <span style=color:#00f>public</span> <span style=color:#2b91af>void</span> run() {
 </span></span><span style=display:flex><span>        <span style=color:#00f>try</span> {
-</span></span><span style=display:flex><span>          <span style=color:green>// if it is active 
-</span></span></span><span style=display:flex><span><span style=color:green></span>          <span style=color:#00f>if</span> (on.get() == 1) 
+</span></span><span style=display:flex><span>          <span style=color:green>// if it is active </span>
+</span></span><span style=display:flex><span>          <span style=color:#00f>if</span> (on.get() == 1) 
 </span></span><span style=display:flex><span>            behavior = 
-</span></span><span style=display:flex><span>              behavior.apply(mbox.poll()) <span style=color:green>// apply the behavior to the top of the mailbox
-</span></span></span><span style=display:flex><span><span style=color:green></span>                .apply(behavior); <span style=color:green>// as a result an Effect is returned: 
-</span></span></span><span style=display:flex><span><span style=color:green></span>                                  <span style=color:green>// apply it to the current behavior
-</span></span></span><span style=display:flex><span><span style=color:green></span>                                  <span style=color:green>// it returns the next behavior (which overwrites the old in the assignment) 
-</span></span></span><span style=display:flex><span><span style=color:green></span>        } <span style=color:#00f>finally</span> { on.set(0); async(); } <span style=color:green>// deactivate and resume if necessary
-</span></span></span><span style=display:flex><span><span style=color:green></span>    }
+</span></span><span style=display:flex><span>              behavior.apply(mbox.poll()) <span style=color:green>// apply the behavior to the top of the mailbox</span>
+</span></span><span style=display:flex><span>                .apply(behavior); <span style=color:green>// as a result an Effect is returned: </span>
+</span></span><span style=display:flex><span>                                  <span style=color:green>// apply it to the current behavior</span>
+</span></span><span style=display:flex><span>                                  <span style=color:green>// it returns the next behavior (which overwrites the old in the assignment) </span>
+</span></span><span style=display:flex><span>        } <span style=color:#00f>finally</span> { on.set(0); async(); } <span style=color:green>// deactivate and resume if necessary</span>
+</span></span><span style=display:flex><span>    }
 </span></span></code></pre></div><h2 id=wrapping-up>Wrapping Up <a href=#wrapping-up class=anchor>🔗</a></h2><p>In this long blog post we introduced actors as a running example to showcase some of the best
 features of Java 17. One major feature has been left out, though; <strong>sealed type hierarchies</strong>.</p><p>If you recall, in <a href=behaviors-and-effects>Behaviors and Effects</a> we noticed that we could
 use a specific type of message instead of <code>Object</code>:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>interface</span> <span style=color:#2b91af>Message</span> {}
