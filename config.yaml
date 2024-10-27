@@ -36,9 +36,9 @@ params:
     enableGoogleAnalytics: true
 
 
-social:
-  # e.g.
-  github: https://github.com/evacchi
-  linkedin: https://linkedin.com/in/edoardovacchi
-  twitter: https://twitter.com/evacchi
-  mastodon: https://mastodon.social/@evacchi
+  social:
+    # e.g.
+    github: https://github.com/evacchi
+    linkedin: https://linkedin.com/in/edoardovacchi
+    twitter: https://twitter.com/evacchi
+    mastodon: https://mastodon.social/@evacchi

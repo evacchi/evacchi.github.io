@@ -26,6 +26,15 @@ Slides on [Speaker Deck](https://speakerdeck.com/evacchi)
 
   <iframe width="560" height="315" src="https://www.youtube.com/embed/videoseries?list=PLJIBlzfhfvVhM7Nfjmf2_Z_M8EkbndbUG" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
+#### 2024
+  * [GraalVM Community Meetup 2024]: The `main()` in the Mirror: Native Image and Reflection-Free Run-Time Code Loading with Wasm
+  * [[Software You Can Love 2024] The Role Of Social Interaction in Language Ecosystems](https://www.youtube.com/watch?v=xHoCOID_BIU)
+  * [[Wasm I/O 2024] The WasmScape Navigator: Sorting Through the Mosaic of Specs](https://www.youtube.com/watch?v=iHFgfeqY6KE)
+  * [[Devoxx Greece 2024] The Caffeinated Gopher's Guide to Language Runtimes](https://www.youtube.com/watch?v=GfB6xAogk_M)
+  * [[JFokus 2024] WebAssembly from the Inside Out](https://youtu.be/schP6q1B3xM)
+
+#### 2023
+
   * [[Cloud-Native Wasm Day NA 2023] Lightning Talk](https://www.youtube.com/watch?v=14dJXBhNK80)
   * [[WasmCon 2023] From Wazero to Wazhero: An Introduction to Wazero for Gophers and Other Species](https://www.youtube.com/watch?v=j09Svvvtd0E)
   * [[HighLoad++ Serbia 2023] WebAssembly from the inside out](https://www.youtube.com/watch?v=93NL17DYNQs)
@@ -38,15 +47,24 @@ Slides on [Speaker Deck](https://speakerdeck.com/evacchi)
   * [JFokus 2023] Hands-on-lab: Write You An Actor (System) For Great Good! (with JDK 19, records and vthreads!) - with Andrea Peruffo
   * [[JFokus 2023] Dr. Futamura and the Projection Machine: From Interpreters to Compilers](https://www.youtube.com/watch?v=ek8ZSGyDMLk) 
   * [[Voxxed Days Ticino 2023] Wasmer Things: An Upside-Down Guide To WebAssembly](https://www.youtube.com/watch?v=1dcRZ-r-Rbs)
+
+#### 2022
+
   * [[Codemotion Milan 2022] Wasmer Things: An Upside-Down Guide To WebAssembly](https://talks.codemotion.com/wasmer-things-an-upside-down-guide-to-we)
   * [[Devoxx Belgium 2022] Write You An Actor (System) For Great Good! (with JBang, JDK 19, records, pattern matching and virtual threads!)](https://www.youtube.com/watch?v=TOL3zpn1vvQ)
   * [[Voxxed Days Zurich 2022] The Call of Ctooling: The Secrets Behind Native Image Building](https://www.youtube.com/watch?v=kpnEp08PJDs)
+
+#### 2021
+
   * [[KIE Drop 2021] Kogito Public API](https://www.youtube.com/watch?v=j5_QpetYXIA)
   * [[KIELive#47 2021] The Road towards a Kogito Public API](https://www.youtube.com/watch?v=CbTkr0JJ3cA)
   * [[Voxxed Days Romania 2021] The Call of Ctooling: The Secrets Behind Native Image Building](https://www.youtube.com/watch?v=7QM4KLaRRRQ)
   * [[Joker Conf 2021] Kogito: Cloud-native business automation (w/ Mario Fusco)](https://www.youtube.com/watch?v=aCqVof3MUng)
   * [[MakeIT 2021] Kogito: Cloud native Business Automation (w/ Mario Fusco)](https://www.youtube.com/watch?v=SzewJN5Z1tE)
   * [[DevConf.US 2021] Dr Futamura's Projection Machine!](https://www.youtube.com/watch?v=FsLhiJ_QDH8)
+
+#### Others
+
   * [[QCon São Paulo 2019] Your Program as a Transpiler: Applying Compiler Design to Everyday Programming](https://www.youtube.com/watch?v=BUrY6On1SxM)
   * [[Devoxx Belgium 2019] Your Program as a Transpiler: Applying Compiler Design to Everyday Programming](https://www.youtube.com/watch?v=x-xTDfyMZCI)
   * [[Devoxx Belgium 2019] Event-driven business automation powered by cloud native Java (w/ M. Swiderski & M. Fusco)](https://www.youtube.com/watch?v=KBkX6v57Jbo)
