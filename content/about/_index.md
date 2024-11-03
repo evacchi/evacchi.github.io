@@ -7,7 +7,9 @@ permalink: /about/
 # About Me
 
 
-During my PhD I researched language design and implementation at [University of Milan](https://www.di.unimi.it). After three years at [UniCredit Bank's R&D department](https://unicredit.eu), I have joined Red Hat in the [KIE group](https://www.kie.org), where I worked on the [Drools rules engine](https://drools.org) and the [Kogito project](https://kogito.kie.org). Currently I work at [Tetrate](https://tetrate.io), and I am a member of the [wazero](https://wazero.io) development team: [wazero](https://wazero.io) is a zero-dependency WebAssembly runtime for the Go language.
+During my PhD I researched language design and implementation at [University of Milan](https://www.di.unimi.it). After three years at [UniCredit Bank's R&D department](https://unicredit.eu), I have joined Red Hat in the [KIE group](https://www.kie.org), where I worked on the [Drools rules engine](https://drools.org) and the [Kogito project](https://kogito.kie.org). I worked at [Tetrate](https://tetrate.io), as a member of the [wazero](https://wazero.io) development team.  
+
+My continued love for programming language technology and compilers brought me to [Dylibso](https://dylibso.com): I still contribute to [wazero](https://wazero.io), and I now also work on [Chicory](https://chicory.dev/), [Extism](https://extism.org/) and [XTP](https://www.getxtp.com/)!
 
 ## Research
 
@@ -56,6 +58,7 @@ Slides on [Speaker Deck](https://speakerdeck.com/evacchi)
 
 #### 2021
 
+  * [Devoxx Ukraine 2021] The Call of Ctooling: The Secrets Behind Native Image Building
   * [[KIE Drop 2021] Kogito Public API](https://www.youtube.com/watch?v=j5_QpetYXIA)
   * [[KIELive#47 2021] The Road towards a Kogito Public API](https://www.youtube.com/watch?v=CbTkr0JJ3cA)
   * [[Voxxed Days Romania 2021] The Call of Ctooling: The Secrets Behind Native Image Building](https://www.youtube.com/watch?v=7QM4KLaRRRQ)
