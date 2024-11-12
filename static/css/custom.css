@@ -42,7 +42,8 @@
     content: "\f099"; }
 .social a.mastodon:before {
     content: "\f4f6"; }
-
+.social a.bluesky:before {
+    content: "\e671"; }
 
 pre {
     border-top: 1px dotted #bbbbbb;

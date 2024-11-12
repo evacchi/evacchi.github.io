@@ -37,8 +37,8 @@ params:
 
 
   social:
-    # e.g.
     github: https://github.com/evacchi
     linkedin: https://linkedin.com/in/edoardovacchi
+    bluesky: https://bsky.app/profile/evacchi.dev
     twitter: https://twitter.com/evacchi
     mastodon: https://mastodon.social/@evacchi
