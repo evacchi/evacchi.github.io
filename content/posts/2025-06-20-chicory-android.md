@@ -115,16 +115,59 @@ Some work [has been done to run the suite against the interpreter](https://githu
 
 However, with the instrumentation framework, running the entire Wasm spec test suite against the Android compiler takes about **8 minutes** in Android Studio, and about **4 minutes** using Gradle on the command line. This is not terrible, but it is still a lot of time to wait for a test suite to run, especially when you are iterating on the code. Compare this to the plain JVM, where the same test suite takes about **30 seconds** to run! (_FIXME: the JVM number is made up, need to measure again_)
 
-So, recently I decided to investigate how to run unit tests on Android _without_ the overhead of the instrumentation framework. 
+So, I decided to investigate how to run unit tests on Android _without_ the overhead of the instrumentation framework. 
 
-### Running Unit Tests on Android
+### Running Plain Java on ART
 
 Running unit tests on Android is not a common practice, but it is possible. Unfortunately documentation is scattered and a bit outdated, so we had to figure out a lot of things on our own. It doesn't help that while some people still rever to the Android Java platform as the "Dalvik runtime", Android has been using the Android Runtime (ART) since Android 5.0 (Lollipop), and that "ART" is a pretty unsearchable term. Moreover, even internally, the ART runtime is sometimes referred to as "Dalvik", which adds to the confusion. 
 
 First of all, is it possible to run Java console applications on Android? It is; but first you have to figure out where the Java launcher is, and how to package your application.
 
+In fact thanks to [this lone Github repo](https://github.com/WanghongLin/StandaloneDVM) we learn that the Java (ART) launcher is located at `/apex/com.android.art/bin/dalvikvm64` (`/apex/com.android.art/bin/dalvikvm` is the 32-bit version). This is the launcher that you can use to run Java applications on Android.
 
-In fact thanks to [this lone Github repo](https://github.com/WanghongLin/StandaloneDVM) we learn that the Java (ART) launche is located at `/apex/com.android.art/bin/dalvikvm64`. This is the launcher that you can use to run Java applications on Android.
+Let's write a simple Java application that prints the name of the host operating system to the console. 
+
+```java
+class Main {
+    public static void main(String... args) { 
+        System.out.printf("Hello, %s %s\n", 
+            System.getProperty("os.name"),
+            System.getProperty("os.version")); 
+    }
+}
+```
+
+On my machine, I can compile and run this code with the following commands:
+
+```sh
+❯ javac Main.java
+❯ java Main
+Hello, Mac OS X 15.5
+```
+
+Now, assuming your Android tools are on the PATH (on my machine they are in `$HOME/Library/Android/sdk/build-tools/35.0.0`), you can convert the class into a DEX file with the following command:
+
+```sh
+d8 Main.class
+```
+
+This will create a file called `classes.dex` in the current directory. This is the Dalvik bytecode that you can run on Android. Then, assuming you have a running Android emulator (or a connected device), you can upload the file to `/tmp/main.dex` with the following command:
+
+```sh
+❯ adb push classes.dex /tmp/main.dex
+classes.dex: 1 file pushed, 0 skipped. 2.3 MB/s (1076 bytes in 0.000s)
+```
+
+Now you can run it on Android:
+
+```sh
+❯ adb shell /apex/com.android.art/bin/dalvikvm64 -cp /tmp/main.dex Main
+Hello, Linux 6.6.30-android15-8-gdd9c02ccfe27-ab11987101-4k
+```
+
+Congratulations! You have just run a plain Java application on Android!
+
+### Running Unit Tests on Android
 
 Putting it all together, assuming your android test cases are in `androidTest` you can run them with the following commands:
 
