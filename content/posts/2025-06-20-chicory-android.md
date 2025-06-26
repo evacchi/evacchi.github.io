@@ -45,6 +45,105 @@ This means we need a separate Android backend for the Chicory compiler that work
 
 _TODO: add an example_
 
+Consider this example:
+
+```c
+int example() {
+    int x;
+    int param1 = 1;
+    int param2 = 2;
+    
+    while (1) {
+        int sum = param1 + param2;
+        x = sum;
+        
+        if (!(x < 10)) {
+            break;
+        }
+        
+        // Prepare for next iteration
+        param1 = sum;
+        param2 = 3;
+    }
+    
+    return x;
+}
+```
+
+The equivalent Wasm code would look like this:
+
+```scheme
+  (func (export "example") (result i32)
+    (local $x i32)
+    (i32.const 1)
+    (i32.const 2)
+    (loop (param i32 i32) (result i32)
+      (i32.add)
+      (local.tee $x)
+      (i32.const 3)
+      (local.get $x)
+      (i32.const 10)
+      (i32.lt_u)
+      (br_if 0)
+      (drop)
+    )
+  )
+```
+
+The equivalent Java bytecode is relatively straightforward, as Java bytecode is also stack-based. The loop condition is checked at the end of the loop, and the parameters are updated at the end of each iteration.
+
+_FIXME: Claude generated this, need to verify it is correct with the actual JVM compiler_
+
+```
+ 0: iconst_1          // push 1 (loop param 1)
+ 1: iconst_2          // push 2 (loop param 2)
+
+ // Loop start - stack: [param1, param2]
+ 2: iadd              // add top two stack values -> stack: [sum]
+ 3: dup               // duplicate sum -> stack: [sum, sum]
+ 4: istore_1          // store sum in local x -> stack: [sum]
+ 5: iconst_3          // push 3 -> stack: [sum, 3]
+ 6: iload_1           // load x -> stack: [sum, 3, x]
+ 7: bipush 10         // push 10 -> stack: [sum, 3, x, 10]
+ 8: if_icmpge 13      // if x >= 10, exit loop -> stack: [sum, 3]
+10: goto 2            // loop back -> stack: [sum, 3] (these become new params)
+
+// Loop exit - stack: [sum, 3]
+13: pop              // remove the 3 -> stack: [sum]
+14: ireturn          // return sum
+```
+   
+A relatively direct Dalvik translation would pre-allocate the registers assigning them specific roles, 
+and ensure that they are preserved as invariants across iterations. In the following, the `v0` register 
+is used to hold the loop result, `v1` and `v2` are the loop parameters, and `v3` is the sum. 
+The loop condition checks if the sum is less than 10, and if so, it continues iterating.
+
+
+```dalvik
+;; ... function prologue (reads args etc) ...
+0011: const/4             v1 #1 #1     ; param1 = 1
+0012: const/4             v2 #2 #2     ; param2 = 2
+0013: add-int             v3, v1, v2   ; sum = param1 + param2
+0015: move/from16         v0, v3       ; loop result = sum (allocated at loop header)
+0017: const/16            v4 #3 #3     ; constant 3 (pushed to stack)
+0019: move/from16         v5, v0       ; setup comparison operand 1
+001b: const/16            v6 #10 #10   ; setup comparison operand 2
+001d: invoke-static/range Lcom/dylibso/chicory/runtime/OpcodeImpl;->I32_LT_U(II)I {v5, v6}  ; compare loop_result < 10
+0020: move-result         v7           ; branch condition result
+0021: move/from16         v1, v3       ; param1 = sum (loop param update)
+0023: move/from16         v2, v4       ; param2 = 3 (loop param update)
+0025: move/from16         v0, v4       ; loop result = current stack top (systematic update)
+0027: if-eqz              v7 -> 002d   ; if condition false, exit loop
+0029: invoke-static       Lcom/dylibso/chicory/experimental/android/aot/AotMethods;->checkInterruption()V {}  ; runtime interruption check
+002c: goto                -> 0013      ; continue loop
+002d: move/from16         v0, v3       ; loop result = final sum (systematic update)
+;; ... function epilogue (return the values) ...
+```
+
+The loop result is consistently maintained in `v0`, which is allocated at the loop header (0011) and updated at each iteration (0025) and at the final exit (002d).
+Notice how, at the end of the loop, we ensure that `v0`, `v1` and `v2` are updated with the latest values, so, as we re-enter the loop, the registers hold the correct values for the next iteration. 
+
+
 ## Runtime Limitations
 
 Even though nowadays Android devices can be pretty beefy, the Dalvik runtime is still designed to run on devices with limited resources. In particular, to ensure a smooth user experience, the Dalvik runtime has some limitations on the amount of memory and stack space that can be used by an application.
