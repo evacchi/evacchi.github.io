@@ -43,8 +43,6 @@ In a modern Android toolchain, your build tool produces Java bytecode, which is 
 
 This means we need a separate Android backend for the Chicory compiler that works with register-based instructions. We can still reuse a lot of the JVM compiler code, but we have to watch out for the differences between the two approaches—especially with control-flow structures like branches and loops, where registers and stacks work pretty differently.
 
-_TODO: add an example_
-
 Consider this example:
 
 ```c
@@ -90,7 +88,7 @@ The equivalent Wasm code would look like this:
   )
 ```
 
-The equivalent Java bytecode is relatively straightforward, as Java bytecode is also stack-based. The loop condition is checked at the end of the loop, and the parameters are updated at the end of each iteration.
+The equivalent Java bytecode is relatively straightforward, because the JVM is also stack-based. The loop condition is checked at the end of the loop, and the parameters are updated at the end of each iteration.
 
 _FIXME: Claude generated this, need to verify it is correct with the actual JVM compiler_
 
@@ -113,7 +111,7 @@ _FIXME: Claude generated this, need to verify it is correct with the actual JVM 
 14: ireturn          // return sum
 ```
    
-A relatively direct Dalvik translation would pre-allocate the registers assigning them specific roles, 
+A relatively direct Dalvik translation could pre-allocate the registers assigning them specific roles, 
 and ensure that they are preserved as invariants across iterations. In the following, the `v0` register 
 is used to hold the loop result, `v1` and `v2` are the loop parameters, and `v3` is the sum. 
 The loop condition checks if the sum is less than 10, and if so, it continues iterating.
@@ -143,10 +141,11 @@ The loop condition checks if the sum is less than 10, and if so, it continues it
 The loop result is consistently maintained in `v0`, which is allocated at the loop header (0011) and updated at each iteration (0025) and at the final exit (002d).
 Notice how, at the end of the loop, we ensure that `v0`, `v1` and `v2` are updated with the latest values, so, as we re-enter the loop, the registers hold the correct values for the next iteration. 
 
+The main limitation of this approach is that it will waste a few registers, and generate a few more moves than strictly necessary. However this makes the compiler simpler: while more sophisticated approaches could be used to optimize the register usage, they could add overhead to the compiler and slow it down. We will revisit this in the future, but for now, we are happy with this approach. 
 
 ## Runtime Limitations
 
-Even though nowadays Android devices can be pretty beefy, the Dalvik runtime is still designed to run on devices with limited resources. In particular, to ensure a smooth user experience, the Dalvik runtime has some limitations on the amount of memory and stack space that can be used by an application.
+Even though nowadays Android devices can be pretty beefy, you cannot give resources for granted. In particular, to ensure a smooth user experience, the ART runtime poses some limitations on the amount of memory and stack space that can be used by an application. Let's see what these limitations are, and how we can work around them.
 
 ### Limitations on the Stack Size
 
@@ -192,27 +191,23 @@ At this time we are not aware of a simple way to avoid this issue, but there is 
 
 ## Memory Management
 
-In our experience, starting around 150MB of heap usage, the Garbage Collector kicks in more frequently: this is especially problematic when that memory belongs to the compiler!
+Finally, we managed to make all the spec tests pass on Android. Great, now let's move onto some real-world Wasm modules! We started with the [mcp.run `fetch` servlet](https://www.mcp.run/dylibso/fetch), which is a Wasm module that fetches a webpage from a URL and returns it as Markdown. I was pretty bummed when ART started throwing a `java.lang.OutOfMemoryError`. Looking more closely, I noticed that the offender was the Chicory compiler itself, which was using more than **200MB** of heap space!
 
-It's widely known that the JVM has limitations on class file size and method count. The Dalvik runtime has similar constraints, with a limit of **65,535 methods** per class file. On the JVM compiler, we handle this by generating multiple class files with reduced method counts and falling back to the interpreter when individual methods become too large.
+Now, everybody knows that the JVM has limitations on class file size and method count. The Dalvik runtime has similar constraints, with a limit of **65535 methods** per class file. So, on the JVM compiler, we generate multiple class files when the class file grows over 50k methods; if a function is too large, we just fall back to the interpreter. This works well on the JVM, but it is not enough on Android; it is mostly an issue related to the way DexMaker works. DexMaker retains the complete intermediate representation of all the generated methods in memory until the final DEX file is generated. This means that if you generate a lot of methods, the memory usage can grow significantly, especially if the methods are large.
 
-The Dalvik runtime introduces an additional constraint: memory usage. With reasonably-sized Wasm modules, we've observed that the Dalvik runtime struggles when compiler memory usage exceeds **150MB** and throws `java.lang.OutOfMemoryError` around **200MB**.
-
-This wouldn't be a major issue if DexMaker allowed us to emit bytecode incrementally, but `DexMaker#generate()` produces an entire DEX file at once. This forces us to keep the complete intermediate representation in memory until compilation finishes. 
-
-Luckily, the solution is relatively straightforward: split compilation into chunks, and produce a separate class at a low boundary (currently 200 methods per chunk). This approach finally allowed us to run complex Wasm modules on Android, including, notably, the [mcp.run `fetch` servlet](https://www.mcp.run/dylibso/fetch), without memory issues.
+Luckily, the solution is relatively straightforward: split class files at a lower boundary (currently 200 methods per "chunk"). This approach finally allowed us to "make [`fetch`](https://www.mcp.run/dylibso/fetch) happen"!
 
 ## Testing the Android backend
 
-Android's development tooling is not designed for this kind of lower-level work. Testing Android applications typically uses the [Android Instrumentation framework](https://developer.android.com/training/testing/). The instrumentation framework is a powerful tool but comes with significant overhead, because internally it transfers a lot of data between the host and the device. This is ok for end-to-end, integration testing, where flows are usually long and complex, but not so much for unit testing, where you want to run a lot of tests quickly.
+Android's development tooling is not designed for this kind of lower-level work. Testing Android applications on device, typically uses the [Android Instrumentation framework](https://developer.android.com/training/testing/). The instrumentation framework is a powerful tool but comes with significant overhead; among other things, it transfers a lot of metadata between the host and the device. This is ok for end-to-end, integration testing, where flows are usually long and complex, but not so much for unit testing, where you want to run a lot of tests quickly.
 
-The instrumentation framework is the default way to run tests on the device, but normally this is not necessary, you can run tests on the host machine on a plain JVM; even when Android-specific APIs are involved, [Roboelectric](https://robolectric.org/) simulates the Android environment, allowing you to run tests without the overhead of the instrumentation framework.
+Moreover, while the instrumentation framework is the default way to run tests on the device, most unit tests are usually run on the host machine on a plain JVM; even when Android-specific APIs are involved, [Roboelectric](https://robolectric.org/) simulates the Android environment, allowing you to run tests without the overhead of the instrumentation framework.
 
-But with this approach we can't test the Chicory compiler for Android, because the JVM does not support DEX bytecode! The Chicory compiler _must_ run on Android, and we _need_ to test it on Android!
+Unfortunately, none of this applies to our case: the JVM can't load DEX bytecode, and the Chicory compiler _must_ be tested on ART.
 
-Some work [has been done to run the suite against the interpreter](https://github.com/dylibso/chicory/tree/main/android-tests). Even though there is some overhead, it is manageable, because the interpreter can be tested and debugged on a traditional JVM, and then only testing that we do on Android is to ensure that there aren't any platform-specific issues.
+Some work [has been done to run the test suite against the interpreter](https://github.com/dylibso/chicory/tree/main/android-tests). Even though there is some overhead, it is manageable, because the interpreter can be tested and debugged on a traditional JVM. On Android we only ensure that there aren't any platform-specific issues.
 
-However, with the instrumentation framework, running the entire Wasm spec test suite against the Android compiler takes about **8 minutes** in Android Studio, and about **4 minutes** using Gradle on the command line. This is not terrible, but it is still a lot of time to wait for a test suite to run, especially when you are iterating on the code. Compare this to the plain JVM, where the same test suite takes about **30 seconds** to run! (_FIXME: the JVM number is made up, need to measure again_)
+However, running the entire Wasm spec test suite against the Android compiler with the instrumentation framework takes about **8 minutes** in Android Studio, and about **4 minutes** using Gradle on the command line. This is not terrible, but it is still a lot of time to wait for a test suite to run, especially when you are iterating on the code. Compare this to the plain JVM, where the same test suite takes about **30 seconds** to run! (_FIXME: the JVM number is made up, need to measure again_)
 
 So, I decided to investigate how to run unit tests on Android _without_ the overhead of the instrumentation framework. 
 
@@ -283,6 +278,79 @@ adb /apex/com.android.art/bin/dalvikvm64 -cp main.apk org.junit.runner.JUnitCore
 ```
 
 This will run the JUnit test class on the Android device, and you will see the output in the console. Notice this is sidestepping the usual Android launcher. This means that you can run your tests without the overhead of the instrumentation framework, but also you will not be able to use any Android-specific features, such as the Android UI framework or other Android APIs. Just to give you an example, you will not be able to use the Android logging framework.
+
+
+### Running JUnit 5 tests on Android
+
+Now, as an additional degree of complexity, the Chicory test suite uses JUnit 5, while the Android platform only supports JUnit 4 out of the box. There is an unofficial [JUnit 5 Android support library](https://github.com/mannodermaus/android-junit5) that you can use; it also supports the Instrumentation Framework, and this is what we've been using so far.
+
+But if you run from the console, you can just use the [JUnit Platform Console Launcher](https://junit.org/junit5/docs/current/user-guide/#running-tests-console-launcher), and add it to your dependencies; you will also need to ensure that is bundled in the APK: that means that all the dependencies mut be `androidTestImplementation` instead of `androidTestRuntimeOnly`!
+
+```kotlin
+    androidTestImplementation("org.junit.jupiter:junit-jupiter-api:5.13.1")
+    androidTestImplementation("org.junit.jupiter:junit-jupiter-engine:5.13.1")
+    androidTestImplementation("org.junit.platform:junit-platform-console:1.13.1")
+    androidTestImplementation("org.junit.platform:junit-platform-suite:1.13.1")
+```
+
+It is also advisable to create a Suite and list all the classes you want to run, as classpath scanning will not work. In our case:
+
+```
+package com.dylibso.chicory.test.gen;
+
+import org.junit.platform.suite.api.*;
+
+@SelectClasses({
+        SpecV1AddressTest.class,
+        SpecV1AlignTest.class,
+        ...
+        SpecV1Utf8ImportModuleTest.class,
+        SpecV1Utf8InvalidEncodingTest.class,
+})
+@Suite
+public class SpecV1 {}
+```
+
+Then once built and uploaded to `/tmp/main.apk`:
+
+```sh
+./gradlew assembleAndroidTest
+adb push MY_PROJECT/build/outputs/apk/androidTest/debug/MY_PROJECT-debug-androidTest.apk /tmp/main.apk
+adb shell /apex/com.android.art/bin/dalvikvm64 -cp /tmp/main.apk com.example.Main
+```
+
+
+you will finally be able to run the tests with the following command:
+
+```
+adb shell /apex/com.android.art/bin/dalvikvm64 -cp /tmp/main.apk org.junit.platform.console.ConsoleLauncher -c com.dylibso.chicory.test.gen.SpecV1
+```
+
+The boot might take a little time: you can follow on `logcat` if you are bored, and you'll see that something is indeed happening; eventually you will see the test results in the console!
+
+This finally brings the test time down to about **14 seconds**, which is a lot more manageable than the **8 minutes** we had before!
+
+
+### The Hard Way: Running Tests with a Custom Launcher
+
+Can we bring this down further? After all, the spec test suite is generated code, we know exactly what it does, and we could run it without the JUnit framework. [With this custom launcher](#FIXME), we can write a simple `Main` class that runs the tests directly, without the JUnit framework:
+
+```java
+    public static void main(String... args) throws Exception {
+        var tests = Class[] {
+            SpecV1AddressTest.class,
+            SpecV1AlignTest.class,
+            // ... all the other test classes ...
+            SpecV1Utf8ImportModuleTest.class,
+            SpecV1Utf8InvalidEncodingTest.class,
+        };
+        var runner = new SpecTestRunnerMain(8 * 1024 * 1024, tests);
+        runner.runSuiteOnThread();
+    }
+```
+
+The entire suite runs now in about **6 seconds** on the Android device.
+
 
 ### Debugging the Android backend
 
