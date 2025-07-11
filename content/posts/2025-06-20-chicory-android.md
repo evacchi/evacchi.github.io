@@ -1,11 +1,11 @@
 ---
-title: 'Porting Chicory to Android: A Hitchhiker’s Guide to Lower-Level Android Development'
+title: 'Wasm the Hard Way: Porting the Chicory Compiler to Android'
 author: 'Edoardo Vacchi'
 date: 2025-06-20
 tags: [Android, Chicory, WebAssembly]
 ---
 
-If you are interested in Wasm and Java, you might have heard about [Chicory](https://chicory.dev), a pure-Java Wasm runtime. Ever since I started working at [Dylibso](https://dylibso.com), I have been contributing to the project. 
+I am resurrecting my old ["Wasm the Hard Way"](/tags/wasm/) series with a some fresh new content about a recent project I have been working on: porting the [Chicory](https://chicory.dev) Wasm compiler to Android.
 
 [Extism](https://extism.org) is Dylibso's family of open-source projects to develop and host WebAssembly (Wasm) plugins. Going forward, we believe the [Chicory SDK][chicory-sdk] is a solid foundation for running Wasm modules in Java applications, making it our default Wasm runtime for Extism on the Java platform. We're putting our money where our mouth is: the [mcpx4j][mcpx4j] library for running [mcp.run servlets][mcp-run] is built on top of the Chicory SDK.
 
@@ -207,7 +207,7 @@ Unfortunately, none of this applies to our case: the JVM can't load DEX bytecode
 
 Some work [has been done to run the test suite against the interpreter](https://github.com/dylibso/chicory/tree/main/android-tests). Even though there is some overhead, it is manageable, because the interpreter can be tested and debugged on a traditional JVM. On Android we only ensure that there aren't any platform-specific issues.
 
-However, running the entire Wasm spec test suite against the Android compiler with the instrumentation framework takes about **8 minutes** in Android Studio, and about **4 minutes** using Gradle on the command line. This is not terrible, but it is still a lot of time to wait for a test suite to run, especially when you are iterating on the code. Compare this to the plain JVM, where the same test suite takes about **30 seconds** to run! (_FIXME: the JVM number is made up, need to measure again_)
+However, running the entire Wasm spec test suite against the Android compiler with the instrumentation framework takes about **8 minutes** in Android Studio, and about **4 minutes** using Gradle on the command line. This is not terrible, but it is still a lot of time to wait for a test suite to run, especially when you are iterating on the code. Compare this to the plain JVM, where the same test suite takes about **30   ** to run! (_FIXME: the JVM number is made up, need to measure again_)
 
 So, I decided to investigate how to run unit tests on Android _without_ the overhead of the instrumentation framework. 
 
@@ -366,7 +366,7 @@ The critical part is `-Xplugin:libopenjdkjvmti.so`, otherwise the `-agentpath` f
 
 ## Conclusion
 
-The Android backend of the Chicory compiler is still a work in progress, but it is showing promising results. If you are interested in lower-level Android development, or if you want to run Wasm modules on Android, I hope this article has given you some insights into the challenges and solutions we have found so far. If you want to try it out, you can ...
+The Android backend of the Chicory compiler is still a work in progress, but it is showing promising results. If you are interested in lower-level Android development, or if you want to run Wasm modules on Android, I hope this article has given you some insights into the challenges and solutions we have found so far. If you want to try it out follow the instruction on the [https://github.com/dylibso/chicory-compiler-android][chicory-compiler-android] repository, and feel free to open issues if you find any problems or have suggestions for improvements.
 
 
 [chicory-android]: https://docs.mcp.run/blog/2024/12/27/running-tools-on-android/
