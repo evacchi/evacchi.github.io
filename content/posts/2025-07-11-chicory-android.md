@@ -5,7 +5,7 @@ date: 2025-07-11
 tags: [Android, Chicory, WebAssembly]
 ---
 
-I am resurrecting my old ["Wasm the Hard Way"](/tags/wasm/) series with a some fresh new content about a recent project I have been working on: porting the [Chicory](https://chicory.dev) Wasm compiler to Android.
+I am resurrecting my old ["Wasm the Hard Way"](/tags/wasm/) series with some fresh new content about a recent project I have been working on: porting the [Chicory](https://chicory.dev) Wasm compiler to Android.
 
 If you are interested in Wasm and Java, you might have heard about [Chicory](https://chicory.dev), a pure-Java Wasm runtime. Ever since I started working at [Dylibso](https://dylibso.com), I have been contributing to the project. 
 
@@ -471,7 +471,7 @@ The critical part is `-Xplugin:libopenjdkjvmti.so`, otherwise the `-agentpath` f
 
 ## Conclusion
 
-The Android backend of the Chicory compiler is still a work in progress, but it is showing promising results. If you are interested in lower-level Android development, or if you want to run Wasm modules on Android, I hope this article has given you some insights into the challenges and solutions we have found so far. If you want to try it out follow the instruction on the [https://github.com/dylibso/chicory-compiler-android][chicory-compiler-android] repository. The Android backend is still experimental, but you can already try it with the [Chicory SDK][chicory-sdk] and the [mcpx4j][mcpx4j] library. Feel free to open issues if you find any problems or have suggestions for improvements.
+The Android backend of the Chicory compiler is still a work in progress, but it is showing promising results. If you are interested in lower-level Android development, or if you want to run Wasm modules on Android, I hope this article has given you some insights into the challenges and solutions we have found so far. If you want to try it out follow the instruction on the [chicory-compiler-android](https://github.com/dylibso/chicory-compiler-android) repository. The Android backend is still experimental, but you can already try it with the [Chicory SDK][chicory-sdk] and the [mcpx4j][mcpx4j] library. Feel free to open issues if you find any problems or have suggestions for improvements.
 
 
 [chicory-android]: https://docs.mcp.run/blog/2024/12/27/running-tools-on-android/
