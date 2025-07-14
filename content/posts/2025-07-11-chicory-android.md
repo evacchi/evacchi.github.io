@@ -316,7 +316,7 @@ Unfortunately, none of this applies to our case: the JVM can't load DEX bytecode
 
 Some work [has been done to run the test suite against the interpreter](https://github.com/dylibso/chicory/tree/main/android-tests). Even though there is some overhead, it is manageable, because the interpreter can be tested and debugged on a traditional JVM. On Android we only ensure that there aren't any platform-specific issues.
 
-However, running the entire Wasm spec test suite against the Android compiler with the instrumentation framework takes about **8 minutes** in Android Studio, and about **4 minutes** using Gradle on the command line. This is not terrible, but it is still a lot of time to wait for a test suite to run, especially when you are iterating on the code. Compare this to the plain JVM, where the same test suite takes about **30   ** to run! (_FIXME: the JVM number is made up, need to measure again_)
+However, running the entire Wasm spec test suite against the Android compiler with the instrumentation framework takes about **8 minutes** in Android Studio, and about **4 minutes** using Gradle on the command line. This is not terrible, but it is still a lot of time to wait for a test suite to run, especially when you are iterating on the code. Compare this to the plain JVM, where the same test suite takes about **7 seconds** to run! 
 
 So, I decided to investigate how to run unit tests on Android _without_ the overhead of the instrumentation framework. 
 
@@ -442,7 +442,7 @@ This finally brings the test time down to about **14 seconds**, which is a lot m
 
 ### The Hard Way: Running Tests with a Custom Launcher
 
-Can we bring this down further? After all, the spec test suite is generated code, we know exactly what it does, and we could run it without the JUnit framework. [With this custom launcher](#FIXME), we can write a simple `Main` class that runs the tests directly, without the JUnit framework:
+Can we bring this down further? After all, the spec test suite is generated code, we know exactly what it does, and we could run it without the JUnit framework. [With this custom launcher](https://gist.github.com/evacchi/6e63f31866c2118edf50b5b789725c76), we can write a simple `Main` class that runs the tests directly, without the JUnit framework:
 
 ```java
     public static void main(String... args) throws Exception {
@@ -458,7 +458,7 @@ Can we bring this down further? After all, the spec test suite is generated code
     }
 ```
 
-The entire suite runs now in about **6 seconds** on the Android device.
+The entire suite runs now in about **7 seconds** on the Android device, just like on the JVM!
 
 
 ### Debugging the Android backend
