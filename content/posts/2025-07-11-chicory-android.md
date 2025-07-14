@@ -5,6 +5,10 @@ date: 2025-07-11
 tags: [Android, Chicory, WebAssembly]
 ---
 
+<div style="float:right; width:50%">
+    <img src="/assets/chicory-android/robochicory.png" alt="Robochicory" width="100%">
+</div>
+
 I am resurrecting my old ["Wasm the Hard Way"](/tags/wasm/) series with some fresh new content about a recent project I have been working on: porting the [Chicory](https://chicory.dev) Wasm compiler to Android.
 
 If you are interested in Wasm and Java, you might have heard about [Chicory](https://chicory.dev), a pure-Java Wasm runtime. Ever since I started working at [Dylibso](https://dylibso.com), I have been contributing to the project. 
