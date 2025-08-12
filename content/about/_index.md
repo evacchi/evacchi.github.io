@@ -28,6 +28,15 @@ Slides on [Speaker Deck](https://speakerdeck.com/evacchi)
 
   <iframe width="560" height="315" src="https://www.youtube.com/embed/videoseries?list=PLJIBlzfhfvVhM7Nfjmf2_Z_M8EkbndbUG" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
+#### 2025
+  * [[FOSDEM 2025] WebAssembly for Gophers: from Wasm to Asm and back!](
+https://fosdem.org/2025/schedule/event/fosdem-2025-4966-webassembly-for-gophers-from-wasm-to-asm-and-back-/)
+  * [[FOSDEM 2025] Wazero vs Chicory: An In-Depth Comparison Between Two Language-Native Wasm Runtimes](https://fosdem.org/2025/schedule/event/fosdem-2025-4961-wazero-vs-chicory-an-in-depth-comparison-between-two-language-native-wasm-runtimes/)
+  * [[Wasm I/O 2025] Are We Enterprise-Ready Yet?](https://www.youtube.com/watch?v=UyyVL-dDbCw) - with Andrea Peruffo
+  * [[TIC Talks] Putting the ASM in Wasm](https://www.youtube.com/watch?v=5qCajtdAYH4&list=PLJIBlzfhfvVhM7Nfjmf2_Z_M8EkbndbUG&index=4&pp=iAQB)
+  * [[Wasm Research Day 2025] Introducing Chicory: A Portable Wasm Runtime for the JVM and Beyond](https://www.youtube.com/watch?v=5qCajtdAYH4)
+  * [[Kubesimplify] The MCP Course You Need](https://www.youtube.com/watch?v=uD3wjGy7YL0)
+
 #### 2024
   * [GraalVM Community Meetup 2024]: The `main()` in the Mirror: Native Image and Reflection-Free Run-Time Code Loading with Wasm
   * [[Software You Can Love 2024] The Role Of Social Interaction in Language Ecosystems](https://www.youtube.com/watch?v=xHoCOID_BIU)
