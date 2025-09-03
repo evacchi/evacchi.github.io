@@ -1,0 +1,225 @@
+<!doctype html><html lang=en-us><head><title>Extending Kafka the Hard Way (Part 2) | Middle of Nowhere</title><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge,chrome=1"><meta name=viewport content="width=device-width,minimum-scale=1"><meta name=description content="
+In our old post about Kafka we described how to write a self-contained application to apply arbitrary transforms to an incoming stream of Kafka records and publish the result on a new topic.
+In the previous post of this new series, we decided to embark on a new journey, towards embedding data transforms within the broker. In this case, instead of subscribing to a stream of records and applying transforms on the client-side, transforms would be applied directly on the broker."><meta name=generator content="Hugo 0.149.0"><meta name=ROBOTS content="NOINDEX, NOFOLLOW"><link rel=stylesheet href=/css/style.css><link rel=stylesheet href=/css/custom.css><link rel="shortcut icon" href=/images/favicon.ico type=image/x-icon><script async src="https://www.googletagmanager.com/gtag/js?id=G-JEBNMYFPPB"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-JEBNMYFPPB")</script></head><body><nav class=navigation><a href=/><span class=arrow>←</span>Home</a>
+<a href=/posts>Archive</a>
+<a href=/tags>Tags</a>
+<a href=/about>About</a></nav><main class=main><section id=single><h1 class=title>Extending Kafka the Hard Way (Part 2)</h1><div class=tip><time datetime="2025-09-03 00:00:00 +0000 UTC">Sep 3, 2025</time>
+<span class=split>·
+</span><span>2768 words
+</span><span class=split>·
+</span><span>13 minute read</span></div><div class=content><img src=/assets/kafka/kafka-wasm-2.jpg alt="Picture of Franz Kafka looking surprised at the Wasm Logo" width=100%><p>In <a href=https://www.getxtp.com/blog/pluggable-stream-processing-with-xtp-and-kafka target=_blank rel=noopener>our old post about Kafka</a> we described how to write a self-contained application to apply arbitrary transforms to an incoming stream of Kafka records and publish the result on a new topic.</p><p>In the <a href=/posts/2025/08/25/extending-kafka-the-hard-way-part-1/><strong>previous post</strong></a> of this new series, we decided to embark on a new journey, towards embedding data transforms within <strong>the broker</strong>. In this case, instead of subscribing to a stream of records and applying transforms on the client-side, transforms would be applied <strong>directly on the broker.</strong></p><p>Unfortunately, as we have seen earlier, at this time, there is no way to plug into the broker some custom behavior, unless you want to roll up your sleeves and patch it.</p><p>But this did not discourage us: in fact, the Kafka broker supports hooking custom code; it just does not support hooking <em>that specific code path.</em> So, <strong>in the previous post, we described how to implement a Wasm policy for topic creation</strong>, but we promised we would revisit this matter and build on top of that experience.</p><p>Well, that time has come.</p><h2 id=topics-and-partitions>Topics and Partitions <a href=#topics-and-partitions class=anchor>🔗</a></h2><p>If you are familiar with Kafka, you may already know that you write records to <strong>named topics,</strong> and each topic can be further broken down into <strong>partitions</strong>.</p><p>A partition is identified by an integer <strong>index</strong>. Records are ultimately written to a specific pair <code>(topic-name, partition-index)</code>. High availability and resiliency are achieved by <strong>replicating</strong> such partitions. Possibly counterintuitively, <em><strong>clients</strong></em> <strong>determine the partition index</strong>: even if you, as a user, never made use of this feature explicitly, the index of the partition is <strong>always computed on the client-side.</strong></p><p>In fact, it is even possible to <a href=https://kafka.apache.org/documentation/#consumerconfigs_partition.assignment.strategy target=_blank rel=noopener>customize the partitioning strategy</a>; if you don&rsquo;t do it explicitly, normally a default strategy is applied anyway. For instance, in the presence of a key, the index is determined by hashing the key.</p><p>Even though the interface of a <code>KafkaProducer</code> might give you the impression that records are processed one at a time, the primary unit of transfer from a client to a broker is the <strong>ProduceRequest</strong>. A produce request contains many <strong>batches of records,</strong> collected by <code>(topic-name, partition-index)</code>. A <strong>ProduceRequest</strong> may contain <strong>any number of batches</strong>.</p><p>This already poses an interesting challenge in terms of API design. What does it mean for the broker to apply a data transform on a record?</p><h2 id=intercepting-records>Intercepting records <a href=#intercepting-records class=anchor>🔗</a></h2><p>The community has shown great interest in adding support to in-broker computations over records; in fact, in the past, multiple proposals were submitted for evaluation:</p><ul><li><a href=https://cwiki.apache.org/confluence/display/KAFKA/KIP-686%3A+API+to+ensure+Records+policy+on+the+broker target=_blank rel=noopener><strong>KIP-686: API to ensure Records policy on the broker</strong></a></li><li><a href=https://cwiki.apache.org/confluence/display/KAFKA/KIP-729%3A+Custom+validation+of+records+on+the+broker+prior+to+log+append target=_blank rel=noopener><strong>KIP-729: Custom validation of records on the broker prior to log append</strong></a></li><li><a href=https://cwiki.apache.org/confluence/display/KAFKA/KIP-905%3A+Broker+interceptors target=_blank rel=noopener><strong>KIP-905: Broker interceptors</strong></a></li><li><a href=https://cwiki.apache.org/confluence/display/KAFKA/KIP-940%3A+Broker+extension+point+for+validating+record+contents+at+produce+time target=_blank rel=noopener><strong>KIP-940: Broker extension point for validating record contents at produce time</strong></a></li></ul><p>None of them ended up completed, but in our opinion, the most promising attempts were <a href=https://cwiki.apache.org/confluence/display/KAFKA/KIP-905%3A+Broker+interceptors target=_blank rel=noopener><strong>KIP-905</strong></a> and <a href=https://cwiki.apache.org/confluence/display/KAFKA/KIP-940%3A+Broker+extension+point+for+validating+record+contents+at+produce+time target=_blank rel=noopener><strong>KIP-940</strong></a>.</p><p><a href=https://cwiki.apache.org/confluence/display/KAFKA/KIP-905%3A+Broker+interceptors target=_blank rel=noopener><strong>KIP-905</strong></a> only deals with <strong>record validation</strong>: in other words, similarly to our previous post, it returns an error in case a record is not valid, causing the error to be propagated to the original producer on the client-side.</p><p><a href=https://cwiki.apache.org/confluence/display/KAFKA/KIP-940%3A+Broker+extension+point+for+validating+record+contents+at+produce+time target=_blank rel=noopener>KIP-940</a> is more powerful but also more impactful: it allows <strong>transforming</strong>, <strong>rejecting</strong> (for validation), and <strong>filtering out</strong> records. Moreover, it allows to <strong>register</strong> <strong>multiple interceptors:</strong> each interceptor <strong>declares a record topic pattern</strong> (using a regular expression).</p><p><strong>Both proposals apply to single records</strong>, instead of working on the batch level.</p><p>In this blog post, <strong>we implement a variant of</strong> <a href=https://cwiki.apache.org/confluence/display/KAFKA/KIP-940%3A+Broker+extension+point+for+validating+record+contents+at+produce+time target=_blank rel=noopener><strong>KIP-940</strong></a>, but we take a different approach in some key aspects:</p><ul><li>The interceptor is not applied to single a <strong>record,</strong> but to <strong>batches of records for a given pair</strong> <code>(topic-name, partition-index)</code>.</li><li>Only <strong>one interceptor</strong> can be hooked per-broker: it will intercept <strong>all ProduceRequests</strong>. Internally, it might ignore that request and return the batch of records unchanged.</li><li>The interceptor is allowed to <strong>reject</strong> <strong>an entire batch of records</strong> for validation reasons; this was also the behavior in KIP-940, even though the API gave the impression of per-record processing</li><li>The interceptor is allowed to <strong>apply a transform to a batch of records,</strong> resulting in the <strong>creation of a new batch of records</strong>: the <strong>number of records</strong> in the resulting batch <strong>MUST</strong> be the <strong>same number of records in the input</strong> batch.</li></ul><p>It follows that in our approach</p><ol><li><strong>it is</strong> <em><strong>not</strong></em> <strong>possible to</strong> <em><strong>filter out</strong></em> <strong>records</strong></li><li><strong>it is</strong> <em><strong>not</strong></em> <strong>possible to produce</strong> <em><strong>more records than those that were submitted</strong></em>.</li></ol><p>This is because the clients assume that producing a batch of N records, results in <strong>acknowledging exactly N</strong> records being stored. In other words, if a client produces <strong>10 records</strong> in a batch, then the broker <strong>cannot acknowledge</strong> <strong>only 9</strong> or, worse, <strong>11.</strong></p><p>In fact, KIP-940 required a change in the client code to account for filtered-out records.</p><h2 id=writing-to-a-new-topic>Writing to a new topic <a href=#writing-to-a-new-topic class=anchor>🔗</a></h2><p>It follows that this approach only partially overlaps with <a href=https://www.getxtp.com/blog/pluggable-stream-processing-with-xtp-and-kafka target=_blank rel=noopener>our first post about Kafka</a>, where</p><ol><li>we allowed processing one record and <strong>returning 0..n records</strong> as a result</li><li>we received one record from one topic and <strong>published the result to another topic</strong></li><li>however, because we subscribed to an <strong>existing topic</strong>, we <strong>did not support</strong> <strong>rejecting</strong> a record; we could only <em><strong>discard it</strong></em> and produce 0 records as a result.</li></ol><p>Moreover, because the Kafka protocol deals with pairs of <code>(topic-name, partition-index)</code> it would be also <strong>unclear how to receive data from one topic and write the result on a</strong> <em><strong>new</strong></em> <strong>topic</strong>, because the problem is ill-defined: the broker <em><strong>receives</strong></em> <em><strong>batches</strong></em> <strong>of records</strong> for each <code>(topic-name, partition-index)</code> pair.</p><p>It follows that our interceptor should <em><strong>produce</strong></em> <em><strong>batches</strong></em> <strong>of records</strong> for a new <code>(topic-name, partition-index)</code>; but, because the <strong>partition-index</strong> is computed using a client-defined strategy, our transforms should be also configured somehow to compute that index too.</p><p>Moreover, this poses another interesting challenge: if we intercept a <strong>ProduceRequest</strong> on a given broker, we can verify that the pair <code>(topic-name, partition-index)</code> is valid for the current broker; i.e., that that partition exists on that broker. However, in order to write to a new pair <code>(topic-name', partition-index')</code> , we need to know where that pair is: that pair <strong>might exist</strong> on the same broker, or it might exist only on a <strong>different broker</strong>: in that case it would mean we would have to propagate the resulting batch through the network.</p><p>For instance, suppose that a request lands on broker <strong>b1</strong> with a batch for topic <strong>t1</strong>, partition <strong>p1</strong>. Imagine, that an interceptor generates a new batch for topic <strong>t2</strong>, partition <strong>p2</strong>, with <strong>t1≠t2, p1≠p2</strong>. If <strong>t2,p2</strong> is not stored on <strong>b1</strong>, we would have to look for a broker <strong>b2</strong> that is leader for <strong>t2,p2!</strong></p><p>This is in fact doable, but it poses further challenges in terms of acknowledging the request: should we wait for an acknowledgment from <strong>b2?</strong> What kinds of constraints should we pose on the <strong>batches of records?</strong> Should the size still match? etc.</p><p>All of this is doable, but it would go well beyond the scope of this blog post, so we decided to keep it simple.</p><h2 id=alright-enough-with-the-chit-chat-can-we-do-some-coding-now>Alright, enough with the chit-chat, can we do some coding now? <a href=#alright-enough-with-the-chit-chat-can-we-do-some-coding-now class=anchor>🔗</a></h2><p>As opposed to the previous post, where we had an interface already available for implementation, in this post we will have to do all the heavy lifting ourselves.</p><p>So let&rsquo;s start with defining an interface for the interceptor. This interface will be implemented in the <code>kafka-clients</code> module, as it is the only Kafka core module published to Maven Central.</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>package</span> org.apache.kafka.server.intercept;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:green>// imports...</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#00f>public</span> <span style=color:#00f>interface</span> <span style=color:#2b91af>ProduceRequestInterceptor</span> <span style=color:#00f>extends</span> Configurable, AutoCloseable {
+</span></span><span style=display:flex><span>    RecordBatch intercept(RecordBatch batch) 
+</span></span><span style=display:flex><span>      <span style=color:#00f>throws</span> ProduceRequestInterceptorException;
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>Unfortunately, in the broker, all the classes dealing with sets of records are either non-public or they are marked as subject to change. So, if we want to do things right, we should provide our own <code>RecordBatch</code>. We also define a low-level <code>Record</code> interface for the same reason.</p><p><code>TopicPartition</code> and <code>Header</code> are classes you should be already familiar with, if you ever wrote some Kafka-related code.</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>    <span style=color:#00f>interface</span> <span style=color:#2b91af>RecordBatch</span> {
+</span></span><span style=display:flex><span>        TopicPartition topicPartition();
+</span></span><span style=display:flex><span>        Iterable&lt;? <span style=color:#00f>extends</span> Record&gt; records();
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#00f>interface</span> <span style=color:#2b91af>Record</span> {
+</span></span><span style=display:flex><span>        <span style=color:#2b91af>long</span> timestamp();
+</span></span><span style=display:flex><span>        ByteBuffer key();
+</span></span><span style=display:flex><span>        ByteBuffer value();
+</span></span><span style=display:flex><span>        Header[] headers();
+</span></span><span style=display:flex><span>    }
+</span></span></code></pre></div><p>We should now implement a manager for such <code>ProduceRequestInterceptor</code>.</p><p>First of all, our <code>ProduceRequestInterceptorManager</code> should load the configured <code>ProduceRequestInterceptor</code>. We might handle this directly in its constructor. We can use the <code>KafkaConfig</code> utility to automatically instantiate a class from its name:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>public</span> ProduceRequestInterceptorManager(KafkaConfig config) {
+</span></span><span style=display:flex><span>    <span style=color:#00f>this</span>.interceptor = config.getConfiguredInstance(
+</span></span><span style=display:flex><span>            <span style=color:#a31515>&#34;produce.request.interceptor.class.name&#34;</span>, 
+</span></span><span style=display:flex><span>            ProduceRequestInterceptor.class);
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>Then, for each topic, partition pair in a <strong>ProduceRequest</strong> we want to process the records with our interceptor:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>public</span> Map&lt;TopicPartition, PartitionResponse&gt; intercept(ProduceRequest request) {
+</span></span><span style=display:flex><span>    <span style=color:#00f>var</span> errors = <span style=color:#00f>new</span> HashMap&lt;TopicPartition, PartitionResponse&gt;();
+</span></span><span style=display:flex><span>    ProduceRequestData requestData = request.data();
+</span></span><span style=display:flex><span>    <span style=color:#00f>var</span> topicProduceData = requestData.topicData();
+</span></span><span style=display:flex><span>    <span style=color:#00f>for</span> (<span style=color:#00f>var</span> tpd : topicProduceData) {
+</span></span><span style=display:flex><span>        <span style=color:#00f>for</span> (<span style=color:#00f>var</span> ppd : tpd.partitionData()) {
+</span></span><span style=display:flex><span>            <span style=color:#00f>var</span> topicPartition =
+</span></span><span style=display:flex><span>                    <span style=color:#00f>new</span> TopicPartition(tpd.name(), ppd.index());
+</span></span><span style=display:flex><span>            <span style=color:#00f>try</span> {
+</span></span><span style=display:flex><span>                <span style=color:green>// This cast to an internal class is safe to do in the broker</span>
+</span></span><span style=display:flex><span>                <span style=color:green>// even though it&#39;s an implementation detail.</span>
+</span></span><span style=display:flex><span>                <span style=color:green>// This is a collection of batches of records</span>
+</span></span><span style=display:flex><span>                <span style=color:green>// This class won&#39;t be available for clients, because</span>
+</span></span><span style=display:flex><span>                <span style=color:green>// it is not exported.</span>
+</span></span><span style=display:flex><span>                <span style=color:#00f>var</span> inputRecords = (MemoryRecords) ppd.records();
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>								<span style=color:green>// Apply the interceptor to the records. </span>
+</span></span><span style=display:flex><span>                MemoryRecords memoryRecords = 
+</span></span><span style=display:flex><span>                  interceptBatch(topicPartition, inputRecords);
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>                ppd.setRecords(memoryRecords);
+</span></span><span style=display:flex><span>            } <span style=color:#00f>catch</span> (ProduceRequestInterceptorException ex) {
+</span></span><span style=display:flex><span>                errors.put(topicPartition,
+</span></span><span style=display:flex><span>                        <span style=color:#00f>new</span> PartitionResponse(Errors.forException(ex)));
+</span></span><span style=display:flex><span>            }
+</span></span><span style=display:flex><span>        }
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>    <span style=color:#00f>return</span> errors;
+</span></span><span style=display:flex><span>}    
+</span></span></code></pre></div><p>And the <code>interceptBatch()</code> method:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>  <span style=color:#00f>private</span> MemoryRecords interceptBatch(
+</span></span><span style=display:flex><span>		  TopicPartition topicPartition, MemoryRecords inputRecords) 
+</span></span><span style=display:flex><span>          <span style=color:#00f>throws</span> ProduceRequestInterceptorException {
+</span></span><span style=display:flex><span>      <span style=color:green>// Wrap the internal class into a our own wrapper exposing MemoryRecords </span>
+</span></span><span style=display:flex><span>      <span style=color:green>// using our new public API</span>
+</span></span><span style=display:flex><span>      <span style=color:#00f>var</span> inputBatch = <span style=color:#00f>new</span> MemoryRecordBatch(topicPartition, inputRecords);
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>      <span style=color:green>// Apply the interceptor</span>
+</span></span><span style=display:flex><span>      RecordBatch outputBatch = interceptor.intercept(inputBatch);
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>      <span style=color:green>// Convert back to Memory records</span>
+</span></span><span style=display:flex><span>      <span style=color:green>// Using an utility class of our own </span>
+</span></span><span style=display:flex><span>      <span style=color:green>// (omitted here for brevity)</span>
+</span></span><span style=display:flex><span>      <span style=color:#00f>return</span> Conversions.asMemoryRecords(outputBatch);
+</span></span><span style=display:flex><span>  }
+</span></span></code></pre></div><blockquote><p>💡 Technically the <code>MemoryRecords</code> class wraps a <strong>collection of batches</strong>. For simplicity, we will treat this as a <strong>single batch of records</strong> (the union of all the records in all the batches).</p><p>Also notice that batches may be optionally compressed. Compression is applied to individual batches, so each batch may be individually compressed, but the compression type is specified at the <code>MemoryRecords</code> level.</p><p>In order to apply the transform to a compressed batch, we would need to decompress it first. For simplicity, we assume that record batches are not compressed, and we will return an uncompressed result.</p></blockquote><p>… and that&rsquo;s pretty much it. Now we only need to wire-in our brand-new <strong>ProduceRequestInterceptorManager.</strong> This is the part where we actually patch the Kafka broker.</p><p>Open <a href=https://github.com/apache/kafka/blob/b213c64f97fa6b4ab3b79b828e37095603841d6f/core/src/main/scala/kafka/server/KafkaApis.scala#L136 target=_blank rel=noopener>scala/kafka/server/KafkaApis.scala</a>, and in the class body, you can add a new field:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-scala data-lang=scala><span style=display:flex><span><span style=color:#00f>val</span> produceRequestInterceptorManager <span style=color:#00f>=</span> 
+</span></span><span style=display:flex><span>   <span style=color:#00f>new</span> <span style=color:#2b91af>ProduceRequestInterceptorManager</span>(config)
+</span></span></code></pre></div><p>Congratulations! You just patched the Kafka broker! Aren&rsquo;t you proud?</p><blockquote><p>💡 The code you will find online is slightly more complicated because it properly documents the new config keys, and it wires the <code>ProduceRequestInterceptorManager</code> in other places (mostly object builders and test cases) as needed.</p></blockquote><h2 id=dude-wheres-my-wasm>Dude, Where&rsquo;s My Wasm? <a href=#dude-wheres-my-wasm class=anchor>🔗</a></h2><p><strong>— This blog post is a travesty!</strong> I was promised some Wasm, some Chicory, and a dash of XTP, and all I&rsquo;m getting is a lousy Kafka patch.</p><p>We hear ya, so here&rsquo;s your cup of Chicory ☕️</p><p>If you have read the previous blog post, the new <code>TransformManager</code> will almost feel underwhelming. Let&rsquo;s say each transform is registered to handle a topic, we can define a map from <code>String</code> (the topic name) to our <code>Transform</code>:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>public</span> <span style=color:#00f>class</span> <span style=color:#2b91af>TransformManager</span> <span style=color:#00f>implements</span> ProduceRequestInterceptor {
+</span></span><span style=display:flex><span>    <span style=color:#00f>private</span> <span style=color:#00f>final</span> ConcurrentHashMap&lt;String, Transform&gt; transforms = 
+</span></span><span style=display:flex><span>		    <span style=color:#00f>new</span> ConcurrentHashMap&lt;&gt;();
+</span></span><span style=display:flex><span>    ...
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>Then, since our <code>ProduceRequestInterceptor</code> implements <code>Configurable</code> (like a <code>CreateTopicPolicy</code>) we can pull the configured Wasm interceptor from config keys. For instance, we could read from a property a comma-separated list of topic names:</p><pre tabindex=0><code>produce.request.interceptor.wasm.topics=topic1,topic2,...
+</code></pre><p>and then expect a config key <code>produce.request.interceptor.wasm.$topic.path</code> to be defined for each topic in the list. Again, for simplicity, we will assume this is a path on disk, but nothing prevents you from implementing fancier strategies.</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>public</span> <span style=color:#2b91af>void</span> configure(Map&lt;String, ?&gt; configs) {
+</span></span><span style=display:flex><span>    List&lt;String&gt; topics = 
+</span></span><span style=display:flex><span>        parseList(configs.get(<span style=color:#a31515>&#34;produce.request.interceptor.wasm.topics&#34;</span>));
+</span></span><span style=display:flex><span>    <span style=color:#00f>for</span> (<span style=color:#00f>var</span> topic : topics) {
+</span></span><span style=display:flex><span>        <span style=color:#00f>var</span> path = configs.get(
+</span></span><span style=display:flex><span>            <span style=color:#a31515>&#34;produce.request.interceptor.wasm.&#34;</span>+topic+<span style=color:#a31515>&#34;.path&#34;</span>);
+</span></span><span style=display:flex><span>        <span style=color:#00f>var</span> inputStream = <span style=color:#00f>new</span> FileInputStream(path);
+</span></span><span style=display:flex><span>        <span style=color:#00f>var</span> manifest = <span style=color:#00f>new</span> TransformManifest(inputStream, pluginName, topic);
+</span></span><span style=display:flex><span>        <span style=color:#00f>var</span> transform = Transform.fromManifest(manifest);
+</span></span><span style=display:flex><span>        transforms.put(topic, transform);    
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>Notice this is pretty much the same <code>Transform</code> that we saw <a href=https://www.getxtp.com/blog/pluggable-stream-processing-with-xtp-and-kafka target=_blank rel=noopener>in our earlier article</a>, even though the Wasm interface will be slightly different. In fact, even though the <strong>interceptor</strong> works at the <strong>RecordBatch</strong> level, nothing prevents us from exposing a <strong>per-record interface to our Wasm transforms!</strong></p><p>The transform, as usual, is pretty much a wrapper for an Extism Chicory SDK <code>Plugin</code>:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>public</span> <span style=color:#00f>class</span> <span style=color:#2b91af>Transform</span> {
+</span></span><span style=display:flex><span>    ...
+</span></span><span style=display:flex><span>	  <span style=color:#00f>public</span> Record transform(Record record) {
+</span></span><span style=display:flex><span>		    <span style=color:green>// InternalMapper wraps a Jackson mapper instance.</span>
+</span></span><span style=display:flex><span>		    <span style=color:#2b91af>byte</span>[] in = InternalMapper.asBytes(record);
+</span></span><span style=display:flex><span>		    <span style=color:#2b91af>byte</span>[] out = plugin.call(<span style=color:#a31515>&#34;transform&#34;</span>, recordBytes);
+</span></span><span style=display:flex><span>		    <span style=color:#00f>return</span> InternalMapper.fromBytes(manifest.outputTopic(), out);
+</span></span><span style=display:flex><span>	  }
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>Now it&rsquo;s the moment of truth: let&rsquo;s implement <code>ProduceRequestInterceptor#intercept()</code></p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>public</span> RecordBatch intercept(RecordBatch batch) {
+</span></span><span style=display:flex><span>    Transform t = ktransform.get(batch.topicPartition().topic());
+</span></span><span style=display:flex><span>    <span style=color:green>// No transform has been registered for this topic.</span>
+</span></span><span style=display:flex><span>    <span style=color:#00f>if</span> (t == <span style=color:#00f>null</span>) {
+</span></span><span style=display:flex><span>        <span style=color:#00f>return</span> batch; <span style=color:green>// NO WASM FOR YOU!</span>
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>    <span style=color:green>// This utility class implements the `RecordBatch` interface</span>
+</span></span><span style=display:flex><span>    <span style=color:green>// and it&#39;s implemented in the client library.</span>
+</span></span><span style=display:flex><span>    <span style=color:#00f>var</span> result = <span style=color:#00f>new</span> SimpleRecordBatch.Builder(batch.topicPartition());
+</span></span><span style=display:flex><span>    <span style=color:#00f>for</span> (<span style=color:#00f>var</span> record : batch.records()) {
+</span></span><span style=display:flex><span>        result.append(t.transform(record));
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>    <span style=color:#00f>return</span> result.build();
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><h3 id=my-xtprecious>My XTPrecious <a href=#my-xtprecious class=anchor>🔗</a></h3><p>Let&rsquo;s now create our plug-in interface. In this example we will be exposing a simpler interface, where both the key and the value of a record are strings:</p><pre tabindex=0><code>version: v1-draft
+components:
+  schemas:
+    Header:
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+      description: A key/value header pair.
+    Record:
+      properties:
+        key:
+          type: string
+        topic:
+          type: string
+        value:
+          type: string
+        headers:
+          type: array
+          items:
+            $ref: &#34;#/components/schemas/Header&#34;
+      description: A plain key/value record.
+exports:
+  transform:
+    input:
+      $ref: &#34;#/components/schemas/Record&#34;
+      contentType: application/json
+    output:
+      $ref: &#34;#/components/schemas/Record&#34;
+      contentType: application/json
+    description: |
+      This function takes one Record and returns a single Record.
+</code></pre><p>Notice that you are free to pick the schema you decide, because you are still in full control of the <code>TransformManager</code>. Even if an interface like <code>ProduceRequestInterceptor</code> were to be upstreamed to Kafka, you will always be able to define a domain-specific API for your Wasm plug-ins!</p><p>Now let&rsquo;s scaffold our transform. Say, let&rsquo;s convert to <strong>uppercase</strong> the value of a record and write it back. Fire up your <code>xtp plugin init</code> and create a plugin called <code>upper</code>, and, in your <code>main.go</code>:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#00f>package</span> main
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#00f>import</span> <span style=color:#a31515>&#34;strings&#34;</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#00f>func</span> Transform(input Record) (Record, <span style=color:#2b91af>error</span>) {
+</span></span><span style=display:flex><span>	input.Value = strings.ToUpper(value)
+</span></span><span style=display:flex><span>	<span style=color:#00f>return</span> input, <span style=color:#00f>nil</span>
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>Now launch <code>xtp plugin build</code> and you are ready to configure your broker:</p><pre tabindex=0><code>produce.request.interceptor.class.name=com.dylibso.examples.kafka.transforms.TransformManager
+produce.request.interceptor.wasm.topics=test-topic
+produce.request.interceptor.wasm.test-topic.path=/path/to/upper/dist/plugin.wasm
+</code></pre><p>Start up your broker and write anything to <code>test-topic</code>. Your transform will eat it up and SHOUT IT OUT LOUD! We can also write a validation routine. For instance, you could reject all records where the value is upper case:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#00f>package</span> main
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#00f>import</span> <span style=color:#a31515>&#34;strings&#34;</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#00f>func</span> Transform(input Record) (Record, <span style=color:#2b91af>error</span>) {
+</span></span><span style=display:flex><span>	original := input.Value
+</span></span><span style=display:flex><span>	upper := strings.ToUpper(original)
+</span></span><span style=display:flex><span>	<span style=color:#00f>if</span> original == upper {
+</span></span><span style=display:flex><span>		<span style=color:#00f>return</span> Record{}, errors.New(<span style=color:#a31515>&#34;stop shouting, you are hurting my ears&#34;</span>)
+</span></span><span style=display:flex><span>	} <span style=color:#00f>else</span> {
+</span></span><span style=display:flex><span>		<span style=color:#00f>return</span> input, <span style=color:#00f>nil</span>
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>Because the transform returns an error, it will automatically reject the entire batch. Reminds you something? That&rsquo;s right, it works the same as our earlier CreateTopicPolicy!</p><h2 id=killing-me-softly-again>Killing me softly (again) <a href=#killing-me-softly-again class=anchor>🔗</a></h2><p>If there is a critical place where we don&rsquo;t want throughput to suffer is the request handler. So let&rsquo;s make sure that interceptors can be killed. Essentially, we want to give a single, predictable timeout <strong>per-request</strong>. One way to do that is to instantiate an ExecutorService at the beginning of our <code>intercept(ProduceRequest request)</code> method, and then forcibly terminate execution after a timeout:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>public</span> Map&lt;TopicPartition, PartitionResponse&gt; intercept(ProduceRequest request) {
+</span></span><span style=display:flex><span>    ProduceRequestData requestData = request.data();
+</span></span><span style=display:flex><span>    <span style=color:#00f>var</span> futures = <span style=color:#00f>new</span> ConcurrentHashMap&lt;TopicPartition, Future&lt;?&gt;&gt;();
+</span></span><span style=display:flex><span>    
+</span></span><span style=display:flex><span>    <span style=color:#00f>try</span> (<span style=color:#00f>var</span> svc = Executors.newSingleThreadExecutor()) {
+</span></span><span style=display:flex><span>        <span style=color:#00f>var</span> topicProduceData = requestData.topicData();
+</span></span><span style=display:flex><span>        <span style=color:#00f>for</span> (<span style=color:#00f>var</span> tpd : topicProduceData) {
+</span></span><span style=display:flex><span>            <span style=color:#00f>for</span> (<span style=color:#00f>var</span> ppd : tpd.partitionData()) {
+</span></span><span style=display:flex><span>                <span style=color:#00f>var</span> topicPartition =
+</span></span><span style=display:flex><span>                        <span style=color:#00f>new</span> TopicPartition(tpd.name(), ppd.index());
+</span></span><span style=display:flex><span>                <span style=color:#00f>var</span> inputRecords = (MemoryRecords) ppd.records();
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>								Future&lt;?&gt; f = svc.submit(() -&gt; {
+</span></span><span style=display:flex><span>								    MemoryRecords memoryRecords = 
+</span></span><span style=display:flex><span>								       intercept(topicPartition, inputRecords);
+</span></span><span style=display:flex><span>								    <span style=color:green>// This is safe because the ExecutorService is single-thread</span>
+</span></span><span style=display:flex><span>								    <span style=color:green>// and because each ppd operates on a separate </span>
+</span></span><span style=display:flex><span>								    <span style=color:green>// &lt;topic, partition&gt; pair.</span>
+</span></span><span style=display:flex><span>                    ppd.setRecords(memoryRecords);
+</span></span><span style=display:flex><span>								});
+</span></span><span style=display:flex><span>                futures.put(topicPartition, f);
+</span></span><span style=display:flex><span>            }
+</span></span><span style=display:flex><span>        }
+</span></span><span style=display:flex><span>        svc.shutdown();
+</span></span><span style=display:flex><span>        <span style=color:#00f>if</span> (!svc.awaitTermination(maxMs, TimeUnit.MILLISECONDS)) {
+</span></span><span style=display:flex><span>            svc.shutdownNow();
+</span></span><span style=display:flex><span>        }
+</span></span><span style=display:flex><span>    } <span style=color:#00f>catch</span> (Throwable e) {
+</span></span><span style=display:flex><span>        LOGGER.warn(<span style=color:#a31515>&#34;Execution timed out&#34;</span>, e);
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>		<span style=color:green>// Collect errors from all the `Future&lt;?&gt;`s.</span>
+</span></span><span style=display:flex><span>    <span style=color:#00f>return</span> collectErrors(futures);
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>Now try to write a malicious plugin:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#00f>package</span> main
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#00f>func</span> Transform(input Record) (Record, <span style=color:#2b91af>error</span>) {
+</span></span><span style=display:flex><span>  <span style=color:#00f>for</span> {
+</span></span><span style=display:flex><span>      <span style=color:green>// infinite loop!</span>
+</span></span><span style=display:flex><span>  }
+</span></span><span style=display:flex><span>	<span style=color:#00f>return</span> input, <span style=color:#00f>nil</span>
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>In this case, the transform will time out, it will produce a timeout exception in the <code>ProduceRequestInterceptor</code> and the record will be rejected.</p><h2 id=conclusions>Conclusions <a href=#conclusions class=anchor>🔗</a></h2><p>We are at the end of our journey through the internals of Kafka&rsquo;s broker. We have successfully implemented a WebAssembly-powered record interceptor that runs directly within the broker, navigating Kafka&rsquo;s complex internals while maintaining compatibility with existing clients.</p><p>I hope you enjoyed the exploration of Kafka&rsquo;s internals as much as I did. I believe this feature has a lot of potential: you can define simple data transformations but also complex validation rules, always running in the safe, interruptible Chicory sandbox.</p><p>Who knows? Maybe your use case will be the one that finally gets broker-side transforms into mainstream Kafka!</p></div><div class=tags><a href=/tags/kafka>Kafka</a>
+<a href=/tags/chicory>Chicory</a>
+<a href=/tags/webassembly>WebAssembly</a></div></section></main><footer id=footer><div class=social><a class="symbol bluesky" href=https://bsky.app/profile/evacchi.dev rel=me target=_blank></a><a class="symbol github" href=https://github.com/evacchi rel=me target=_blank></a><a class="symbol linkedin" href=https://linkedin.com/in/edoardovacchi rel=me target=_blank></a><a class="symbol mastodon" href=https://mastodon.social/@evacchi rel=me target=_blank></a><a class="symbol twitter" href=https://twitter.com/evacchi rel=me target=_blank></a></div><div class=copyright>© Copyright
+2025
+<span class=split><svg fill="#bbb" width="15" height="15" id="heart-15" width="15" height="15" viewBox="0 0 15 15"><path d="M13.91 6.75c-1.17 2.25-4.3 5.31-6.07 6.94-.1903.1718-.4797.1718-.67.0C5.39 12.06 2.26 9 1.09 6.75-1.48 1.8 5-1.5 7.5 3.45 10-1.5 16.48 1.8 13.91 6.75z"/></svg>
+</span>Edoardo Vacchi</div><div class=powerby>Powered by <a href=http://www.gohugo.io/>Hugo</a> Theme By <a href=https://github.com/nodejh/hugo-theme-mini>nodejh</a></div></footer></body></html>
