@@ -7,6 +7,8 @@ tags: [Kafka, Chicory, WebAssembly]
 
 <img src="/assets/kafka/kafka-wasm.jpg" alt="Picture of Franz Kafka looking surprised at the Wasm Logo" width="100%">
 
+> 💡 It is worth noticing [Redpanda pioneered in-broker Wasm data transform](https://docs.redpanda.com/current/develop/data-transforms/how-transforms-work/) and this blog series is largely inspired by that work! Check it out!
+
 You might have read my article about [plugging Wasm into Kafka Connect](https://www.getxtp.com/blog/pluggable-stream-processing-with-xtp-and-kafka), but I wanted to revisit this from a different angle: what if instead of **consuming data** from a topic and **manipulating such data on the client-side,** we **intercepted** data as it lands **on the Kafka broker?**
 
 But first of all, **is it possible to extend the Kafka broker at all**?

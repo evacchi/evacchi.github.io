@@ -12,6 +12,8 @@ In [our old post about Kafka](https://www.getxtp.com/blog/pluggable-stream-proce
 
 In the [**previous post**](/posts/2025/08/25/extending-kafka-the-hard-way-part-1/) of this new series, we decided to embark on a new journey, towards embedding data transforms within **the broker**. In this case, instead of subscribing to a stream of records and applying transforms on the client-side, transforms would be applied **directly on the broker.**
 
+> 💡 Shoutout to [Redpanda as they were the first to implement Wasm-based data transforms directly in the broker](https://docs.redpanda.com/current/develop/data-transforms/how-transforms-work/): this blog series is heavily influenced by their work!
+
 Unfortunately, as we have seen earlier, at this time, there is no way to plug into the broker some custom behavior, unless you want to roll up your sleeves and patch it.
 
 But this did not discourage us: in fact, the Kafka broker supports hooking custom code; it just does not support hooking *that specific code path.* So, **in the previous post, we described how to implement a Wasm policy for topic creation**, but we promised we would revisit this matter and build on top of that experience.
