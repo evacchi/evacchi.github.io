@@ -5,185 +5,310 @@ date: 2025-11-01
 tags: [dsl, language-oriented-programming]
 ---
 
+I've been wondering **what LLMs mean for language design and implementation**. Some believe that, because language models are obviously trained on existing content, they are inherently less capable of assisting users with new programming languages. Intuitively this makes sense. On the other hand, language models are definitely excellent at mimicking patterns, and most programming languages are similar.
 
-I've been wondering what LLMs mean for language design and implementation. Some believe that, because language models are obviously trained on existing content, they are inherently less capable of assisting users with new languages. Intuitively this makes sense. On the other hand, if these models are good at something they are definitely excellent at mimicking patterns, and most programming languages are similar.
-
-[Richard Felman argues that this might be the "best" time to create new programming languages](https://www.youtube.com/watch?v=ZsBHc-J9f8o); [Maxime Chevalier has been developing her own experimental programming language](https://x.com/Love2Code/status/1950622166166241767?ref_src=twsrc%5Etfw) called [Plush](https://github.com/maximecb/plush), porting ["many example programs with the help of LLMs"](https://x.com/Love2Code/status/1986900389631811723).
+[Simon Wilson has a "hunch"](https://simonwillison.net/2025/Nov/7/llms-for-new-programming-languages/#atom-everything) that LLMs actually make it _easier_ to build a new programming language. In fact, [Richard Felman has argued that this might be the "best time to create new programming languages"](https://www.youtube.com/watch?v=ZsBHc-J9f8o); [Maxime Chevalier has been developing her own experimental programming language](https://x.com/Love2Code/status/1950622166166241767?ref_src=twsrc%5Etfw) called [Plush](https://github.com/maximecb/plush), porting ["many example programs with the help of LLMs"](https://x.com/Love2Code/status/1986900389631811723). 
 
 If anything, LLMs might be shifting the cost of programming language development economics, making it possibly even simpler to build your own. As a self-professed ["programming-language nerd" and compiler-enthusiast](https://x.com/evacchi/status/1971956291913634265), that just makes me excited.
 
-### The Return of Language-Oriented Programming
+**Disclaimer**: you should _not_ think of this as of a fully-fleshed out essay, rather it is a collection of ideas that I just want share in the hope to spark some interesting conversation!
 
-One of my favorite articles about domain-specific languages is a classic from 1994 where M.C. Ward introduces the idea of [Language-Oriented Programming][lop].
+## Domain-Specific Languages and Language-Oriented Programming
 
-In essence, it extends the idea of designing a large software system in layers, with making one of the layers a language definition.
+One of my favorite articles about domain-specific languages is a classic from 1994 where M.C. Ward introduces the idea of [Language-Oriented Programming][lop]. In essence, LOP extends the idea of designing a large software system in layers, with one layer being a language definition.
 
-So, I've been thinking: what if instead of just generating code for the languages that LLMs already have in their training set, we instead let them generate the _implementation_ of a domain-specific language, and _then_ use that throughout the rest of the coding session?
+[Domain-Specific Languages](https://martinfowler.com/books/dsl.html) are small languages designed to focus on a specific aspect of a software system. We deal with DSLs every day: SQL can be considered a DSL, LaTeX is a DSL, AWK is a DSL, Kubernetes' YAMLs are a DSL They are "domain-specific" because they are used to write code for a given "subdomain" of the software system. In this sense, they have been also described as a means of communcation between a developer and a "domain-expert". The holy grail of computing for many years was to let such "domain experts" write the code themselves, while developers would only validate it and deploy it in the large system.
 
-Our programming languages aren't necessarily "optimized" for use in concert with an LLM. For instance, their design is not meant to spare tokens in a relatively limited "context window". In fact, the notion of "token" itself is possibly counterintuitive from a language design perspective: the tokenizer of a programming language is aware of symbols and whole identifiers and drops whitespace in most cases. For the tokenizer of an LLM, semantically equivalent code can have wildly different token counts based purely on formatting choices, identifier naming, or even the presence of comments. 
+Now it so happens that coding agents are pretty good at generating code, to the point that [Andrey Karpathy claimed](https://x.com/karpathy/status/1617979122625712128) that "The hottest new programming language is English"!
 
-A loop written with short variable names like `i` and `j` consumes far fewer tokens than one using `currentIndex` and `nestedIterator`, yet both correspond to a single identifier. Traditional languages prioritize human readability, expressiveness, and machine execution efficiency, not token economy.
+So, I've been thinking: what if instead of just generating code for the languages that LLMs already have in their training set, **we instead let _them_ generate the _implementation_ of a domain-specific language**, and _then_ **use _that_ throughout the rest of a coding session**?
 
-This mismatch creates interesting tensions: 
-- for instance, verbose but clear variable names using common English words (`userAuthenticationToken`) may actually be more token-efficient than cryptic abbreviations (`uat` or `usrAuthTkn`). This is because BPE tokenizers are trained on natural language, where complete words like `user`, `authentication`, and `token` are learned as single units. Meanwhile, rare abbreviations may be split into multiple character-level tokens, resulting in both poor readability and higher token counts: the worst of both worlds. 
-- Symbols are often used as delimiters for scope, and they often dropped in the later stages of parsing
+But then, what would one such language look like? [Sergei Egorov shared a thread with his thoughts on a similar matter](https://x.com/bsideup/status/1955412035052900587). I myself I've been wondering if one such language would be some kind of mixture between a high-level and a low-level language: in that we want the language to be terse, but at the same time low-level enough to implement some kind of VM for it.
 
-It follows that, even code snippets where complexity is comparable, a language like Python might compare more favorably to Javascript when it comes to token-efficiency.
+And then again, what would "terseness" mean in this context?
+
+## Detour: Token-Efficiency in Programming Languages
+
+Traditional programming languages optimize for human readability, not for token efficiency within an LLM's "context window"[^1].
+
+From a language design perspective, there's a **fundamental mismatch in how "tokens" are defined**: while programming language tokenizers split text at whitespace and symbols (which are then usually dropped after parsing), language models treat tokens very differently.
+
+For instance, in a JS tokenizer, the control-flow structure:
+
+```js
+for (let i = 0; i <= 10; i++) {
+    print(i);
+}
+```
+
+would be tokenized as follows (notice how similar types of tokens are color-coded the same)
+
+<div>
+
+
+<style>
+    .token-container {
+        line-height: 1.8;
+        font-family: monospace;
+        margin: 20px 0;
+    }
+    
+    .token {
+        padding: 2px 1px;
+        border: 1px solid #ccc;
+        margin: 0;
+    }
+    
+    
+    .bg-0 { background-color: #ffcdd2; }
+    .bg-1 { background-color: #f8bbd0; }
+    .bg-2 { background-color: #e1bee7; }
+    .bg-3 { background-color: #d1c4e9; }
+    .bg-4 { background-color: #c5cae9; }
+    .bg-5 { background-color: #bbdefb; }
+    .bg-6 { background-color: #b3e5fc; }
+    .bg-7 { background-color: #b2dfdb; }
+    .bg-8 { background-color: #c8e6c9; }
+    .bg-9 { background-color: #dcedc8; }
+    .bg-10 { background-color: #f0f4c3; }
+    .bg-11 { background-color: #fff9c4; }
+    .bg-12 { background-color: #ffecb3; }
+    .bg-13 { background-color: #ffe0b2; }
+    .bg-14 { background-color: #ffccbc; }
+</style>
+
+<pre class="token-container"><span class="token bg-0" title="keyword">for</span><span class="token bg-5" title="punctuation">(</span><span class="token bg-0" title="keyword">let</span><span class="token bg-3" title="identifier">·i</span><span class="token bg-5" title="operator">·=</span><span class="token bg-11" title="number">·0</span><span class="token bg-5" title="punctuation">;</span><span class="token bg-3" title="identifier">·i</span><span class="token bg-5" title="operator">·&lt;=</span><span class="token bg-11" title="number">·10</span><span class="token bg-5" title="punctuation">;</span><span class="token bg-3" title="identifier">·i</span><span class="token bg-5" title="operator">++</span><span class="token bg-5" title="punctuation">)</span><span class="token bg-5" title="punctuation">·{</span><span class="token bg-3" title="identifier">·print</span><span class="token bg-5" title="punctuation">(</span><span class="token bg-3" title="identifier">i</span><span class="token bg-5" title="punctuation">,</span><span class="token bg-3" title="identifier">·j</span><span class="token bg-5" title="punctuation">);</span><span class="token bg-5" title="punctuation">·}</span></pre>
+</div>
+
+this in turn, would correspond to a "parse tree" of the form:
+
+
+```
+ForStatement
+├── Init: VariableDeclaration (let)
+│   └── VariableDeclarator
+│       ├── Identifier: i
+│       └── Literal: 0
+├── Test: BinaryExpression (<=)
+│   ├── Identifier: i
+│   └── Literal: 10
+├── Update: UpdateExpression (++)
+│   └── Identifier: i
+└── Body: BlockStatement
+    └── ExpressionStatement
+        └── CallExpression
+            ├── Identifier: print
+            └── Arguments
+                └── Identifier: i
+```
+
+But, for the tokenizer of an LLM, no further structure is detected before inference; the token stream would look something like the following[^2], where there is no longer any relation between colors and content (in fact, in this representation matching colors do not qualify the kind of token)
+
+<div>
+
+<pre class="token-container"><span class="token bg-0" title="Token 0: 'for'">for</span><span class="token bg-1" title="Token 1: ' ('">·(</span><span class="token bg-2" title="Token 2: 'let'">let</span><span class="token bg-3" title="Token 3: ' i'">·i</span><span class="token bg-4" title="Token 4: ' ='">·=</span><span class="token bg-5" title="Token 5: ' '">·</span><span class="token bg-6" title="Token 6: '0'">0</span><span class="token bg-7" title="Token 7: ';'">;</span><span class="token bg-8" title="Token 8: ' i'">·i</span><span class="token bg-9" title="Token 9: ' &lt;='">·&lt;=</span><span class="token bg-10" title="Token 10: ' '">·</span><span class="token bg-11" title="Token 11: '10'">10</span><span class="token bg-12" title="Token 12: ';'">;</span><span class="token bg-13" title="Token 13: ' i'">·i</span><span class="token bg-14" title="Token 14: '++)'">++)</span><span class="token bg-0" title="Token 15: ' {\n'">·{
+</span><span class="token bg-1" title="Token 16: ' '">·</span><span class="token bg-2" title="Token 17: ' console'">print</span><span class="token bg-4" title="Token 19: '(i'">(i</span><span class="token bg-7" title="Token 22: ');\n'">);
+</span><span class="token bg-8" title="Token 23: '}'">}</span></pre>
+</div>
+
+In other words, the tokenizer of an LLM being trained in a vast amount of varied text, is not optimized for code; **semantically equivalent code can have wildly different token counts** based purely on formatting choices, identifier naming, or even the presence of comments. 
+
+A loop written with short variable names like `i` and `j` consumes fewer tokens than one using `currentIndex` and `nestedIterator`, yet both correspond to a single identifier. This mismatch creates interesting tensions: 
+- for instance, verbose but clear variable names using common English words (`userAuthenticationToken`) may actually be more token-efficient than cryptic abbreviations (`uat` or `usrAuthTkn`). This is because BPE tokenizers are trained on natural language, where complete words like `user`, `authentication`, and `token` are learned as single units. Meanwhile, rare abbreviations (`Tkn`) may be split into multiple character-level tokens (`T`, `k`, `n`), resulting in both poor readability and higher token counts. 
+- when a programming language is processed by its compiler, symbols (e.g. `{`, `}`, `>=` etc) are often transformed, abstracted or even dropped during parsing; however, in LLM tokenization, these same symbols persist as literal tokens: code that might look compact can still be token-heavy for a language model
+
+Let's consider a few examples.
+
+### Example 1: JavaScript vs Python
+
+When it comes to token-efficiency, a language like Python might compare more favorably to Javascript even in code  where complexity is comparable, because Python uses fewer symbolic delimiters, favoring whitespace and full words instead. Consider:
+
+<div>
 
 <div class="stream output-id-3">
     <div class="output_subarea output_text">
-        <pre>
-JavaScript (short vars): 43 tokens
-</pre>
-    </div>
-</div>
-
-<div class="display_data output-id-2">
-    <div class="output_subarea output_html rendered_html">
-        <pre
-            style="line-height: 1.8; font-family: monospace; font-size: 14px;"><span style="background-color: #ffcdd2; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 0: 'for'">for</span><span style="background-color: #f8bbd0; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 1: ' ('">·(</span><span style="background-color: #e1bee7; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 2: 'let'">let</span><span style="background-color: #d1c4e9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 3: ' i'">·i</span><span style="background-color: #c5cae9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 4: ' ='">·=</span><span style="background-color: #bbdefb; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 5: ' '">·</span><span style="background-color: #b3e5fc; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 6: '0'">0</span><span style="background-color: #b2dfdb; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 7: ';'">;</span><span style="background-color: #c8e6c9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 8: ' i'">·i</span><span style="background-color: #dcedc8; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 9: ' &lt;='">·&lt;=</span><span style="background-color: #f0f4c3; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 10: ' '">·</span><span style="background-color: #fff9c4; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 11: '10'">10</span><span style="background-color: #ffecb3; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 12: ';'">;</span><span style="background-color: #ffe0b2; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 13: ' i'">·i</span><span style="background-color: #ffccbc; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 14: '++)'">++)</span><span style="background-color: #ffcdd2; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 15: ' {\n'">·{
-</span><span style="background-color: #f8bbd0; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 16: ' '">·</span><span style="background-color: #e1bee7; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 17: ' for'">·for</span><span style="background-color: #d1c4e9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 18: ' ('">·(</span><span style="background-color: #c5cae9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 19: 'let'">let</span><span style="background-color: #bbdefb; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 20: ' j'">·j</span><span style="background-color: #b3e5fc; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 21: ' ='">·=</span><span style="background-color: #b2dfdb; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 22: ' '">·</span><span style="background-color: #c8e6c9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 23: '0'">0</span><span style="background-color: #dcedc8; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 24: ';'">;</span><span style="background-color: #f0f4c3; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 25: ' j'">·j</span><span style="background-color: #fff9c4; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 26: ' &lt;='">·&lt;=</span><span style="background-color: #ffecb3; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 27: ' '">·</span><span style="background-color: #ffe0b2; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 28: '5'">5</span><span style="background-color: #ffccbc; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 29: ';'">;</span><span style="background-color: #ffcdd2; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 30: ' j'">·j</span><span style="background-color: #f8bbd0; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 31: '++)'">++)</span><span style="background-color: #e1bee7; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 32: ' {\n'">·{
-</span><span style="background-color: #d1c4e9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 33: '   '">···</span><span style="background-color: #c5cae9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 34: ' console'">·console</span><span style="background-color: #bbdefb; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 35: '.log'">.log</span><span style="background-color: #b3e5fc; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 36: '(i'">(i</span><span style="background-color: #b2dfdb; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 37: ','">,</span><span style="background-color: #c8e6c9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 38: ' j'">·j</span><span style="background-color: #dcedc8; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 39: ');\n'">);
-</span><span style="background-color: #f0f4c3; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 40: ' '">·</span><span style="background-color: #fff9c4; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 41: ' }\n'">·}
-</span><span style="background-color: #ffecb3; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 42: '}'">}</span></pre>
-    </div>
-</div>
-<div class="stream output-id-3">
-    <div class="output_subarea output_text">
-        <pre>
-Python (cryptic abbrevs): 21 tokens (51% vs JS)
-</pre>
-    </div>
-</div>
-<div class="display_data output-id-4">
-    <div class="output_subarea output_html rendered_html">
-        <pre
-            style="line-height: 1.8; font-family: monospace; font-size: 14px;"><span style="background-color: #ffcdd2; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 0: 'for'">for</span><span style="background-color: #f8bbd0; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 1: ' i'">·i</span><span style="background-color: #e1bee7; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 2: ' in'">·in</span><span style="background-color: #d1c4e9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 3: ' range'">·range</span><span style="background-color: #c5cae9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 4: '('">(</span><span style="background-color: #bbdefb; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 5: '11'">11</span><span style="background-color: #b3e5fc; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 6: '):\n'">):
-</span><span style="background-color: #b2dfdb; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 7: ' '">·</span><span style="background-color: #c8e6c9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 8: ' for'">·for</span><span style="background-color: #dcedc8; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 9: ' j'">·j</span><span style="background-color: #f0f4c3; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 10: ' in'">·in</span><span style="background-color: #fff9c4; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 11: ' range'">·range</span><span style="background-color: #ffecb3; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 12: '('">(</span><span style="background-color: #ffe0b2; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 13: '6'">6</span><span style="background-color: #ffccbc; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 14: '):\n'">):
-</span><span style="background-color: #ffcdd2; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 15: '   '">···</span><span style="background-color: #f8bbd0; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 16: ' print'">·print</span><span style="background-color: #e1bee7; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 17: '(i'">(i</span><span style="background-color: #d1c4e9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 18: ','">,</span><span style="background-color: #c5cae9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 19: ' j'">·j</span><span style="background-color: #bbdefb; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 20: ')'">)</span></pre>
-    </div>
-</div>
-<div class="stream output-id-5">
-    <div class="output_subarea output_text">
-        <pre>
-Python (readable names): 22 tokens (49% vs JS)
-</pre>
-    </div>
-</div>
-<div class="display_data output-id-6">
-    <div class="output_subarea output_html rendered_html">
-        <pre
-            style="line-height: 1.8; font-family: monospace; font-size: 14px;"><span style="background-color: #ffcdd2; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 0: 'for'">for</span><span style="background-color: #f8bbd0; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 1: ' outer'">·outer</span><span style="background-color: #e1bee7; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 2: ' in'">·in</span><span style="background-color: #d1c4e9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 3: ' range'">·range</span><span style="background-color: #c5cae9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 4: '('">(</span><span style="background-color: #bbdefb; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 5: '11'">11</span><span style="background-color: #b3e5fc; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 6: '):\n'">):
-</span><span style="background-color: #b2dfdb; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 7: ' '">·</span><span style="background-color: #c8e6c9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 8: ' for'">·for</span><span style="background-color: #dcedc8; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 9: ' inner'">·inner</span><span style="background-color: #f0f4c3; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 10: ' in'">·in</span><span style="background-color: #fff9c4; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 11: ' range'">·range</span><span style="background-color: #ffecb3; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 12: '('">(</span><span style="background-color: #ffe0b2; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 13: '6'">6</span><span style="background-color: #ffccbc; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 14: '):\n'">):
-</span><span style="background-color: #ffcdd2; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 15: '   '">···</span><span style="background-color: #f8bbd0; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 16: ' print'">·print</span><span style="background-color: #e1bee7; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 17: '('">(</span><span style="background-color: #d1c4e9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 18: 'outer'">outer</span><span style="background-color: #c5cae9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 19: ','">,</span><span style="background-color: #bbdefb; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 20: ' inner'">·inner</span><span style="background-color: #b3e5fc; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 21: ')'">)</span></pre>
+        <h4>JavaScript (short vars): 43 tokens</h4>
     </div>
 </div>
 
 
+<div class="output-section">
+    <pre class="token-container"><span class="token bg-0" title="Token 0: 'for'">for</span><span class="token bg-1" title="Token 1: ' ('">(</span><span class="token bg-2" title="Token 2: 'let'">let</span><span class="token bg-3" title="Token 3: ' i'"> i</span><span class="token bg-4" title="Token 4: ' ='"> =</span><span class="token bg-5" title="Token 5: ' '"> </span><span class="token bg-6" title="Token 6: '0'">0</span><span class="token bg-7" title="Token 7: ';'">;</span><span class="token bg-8" title="Token 8: ' i'"> i</span><span class="token bg-9" title="Token 9: ' &lt;='"> &lt;=</span><span class="token bg-10" title="Token 10: ' '"> </span><span class="token bg-11" title="Token 11: '10'">10</span><span class="token bg-12" title="Token 12: ';'">;</span><span class="token bg-13" title="Token 13: ' i'"> i</span><span class="token bg-14" title="Token 14: '++)'">++)</span><span class="token bg-0" title="Token 15: ' {\n'"> {
+</span><span class="token bg-1" title="Token 16: ' '"> </span><span class="token bg-2" title="Token 17: ' for'"> for</span><span class="token bg-3" title="Token 18: ' ('">(</span><span class="token bg-4" title="Token 19: 'let'">let</span><span class="token bg-5" title="Token 20: ' j'"> j</span><span class="token bg-6" title="Token 21: ' ='"> =</span><span class="token bg-7" title="Token 22: ' '"> </span><span class="token bg-8" title="Token 23: '0'">0</span><span class="token bg-9" title="Token 24: ';'">;</span><span class="token bg-10" title="Token 25: ' j'"> j</span><span class="token bg-11" title="Token 26: ' &lt;='"> &lt;=</span><span class="token bg-12" title="Token 27: ' '"> </span><span class="token bg-13" title="Token 28: '5'">5</span><span class="token bg-14" title="Token 29: ';'">;</span><span class="token bg-0" title="Token 30: ' j'"> j</span><span class="token bg-1" title="Token 31: '++)'">++)</span><span class="token bg-2" title="Token 32: ' {\n'"> {
+</span><span class="token bg-3" title="Token 33: '   '">   </span><span class="token bg-4" title="Token 34: ' console'"> console</span><span class="token bg-5" title="Token 35: '.log'">.log</span><span class="token bg-6" title="Token 36: '(i'">(i</span><span class="token bg-7" title="Token 37: ','">,</span><span class="token bg-8" title="Token 38: ' j'"> j</span><span class="token bg-9" title="Token 39: ');\n'">);
+</span><span class="token bg-10" title="Token 40: ' '"> </span><span class="token bg-11" title="Token 41: ' }\n'"> }
+</span><span class="token bg-12" title="Token 42: '}'">}</span></pre>
+</div>
+
+<div class="output-section">
+    <h4>Python (short variable names): 21 tokens (51% vs JS)</h4>
+    <pre class="token-container"><span class="token bg-0" title="Token 0: 'for'">for</span><span class="token bg-1" title="Token 1: ' i'"> i</span><span class="token bg-2" title="Token 2: ' in'"> in</span><span class="token bg-3" title="Token 3: ' range'"> range</span><span class="token bg-4" title="Token 4: '('">(</span><span class="token bg-5" title="Token 5: '11'">11</span><span class="token bg-6" title="Token 6: '):\n'">):
+</span><span class="token bg-7" title="Token 7: ' '"> </span><span class="token bg-8" title="Token 8: ' for'"> for</span><span class="token bg-9" title="Token 9: ' j'"> j</span><span class="token bg-10" title="Token 10: ' in'"> in</span><span class="token bg-11" title="Token 11: ' range'"> range</span><span class="token bg-12" title="Token 12: '('">(</span><span class="token bg-13" title="Token 13: '6'">6</span><span class="token bg-14" title="Token 14: '):\n'">):
+</span><span class="token bg-0" title="Token 15: '   '">   </span><span class="token bg-1" title="Token 16: ' print'"> print</span><span class="token bg-2" title="Token 17: '(i'">(i</span><span class="token bg-3" title="Token 18: ','">,</span><span class="token bg-4" title="Token 19: ' j'"> j</span><span class="token bg-5" title="Token 20: ')'">)</span></pre>
+</div>
+
+<div class="output-section">
+    <h4>Python (readable names): 22 tokens (49% vs JS)</h4>
+    <pre class="token-container"><span class="token bg-0" title="Token 0: 'for'">for</span><span class="token bg-1" title="Token 1: ' outer'"> outer</span><span class="token bg-2" title="Token 2: ' in'"> in</span><span class="token bg-3" title="Token 3: ' range'"> range</span><span class="token bg-4" title="Token 4: '('">(</span><span class="token bg-5" title="Token 5: '11'">11</span><span class="token bg-6" title="Token 6: '):\n'">):
+</span><span class="token bg-7" title="Token 7: ' '"> </span><span class="token bg-8" title="Token 8: ' for'"> for</span><span class="token bg-9" title="Token 9: ' inner'"> inner</span><span class="token bg-10" title="Token 10: ' in'"> in</span><span class="token bg-11" title="Token 11: ' range'"> range</span><span class="token bg-12" title="Token 12: '('">(</span><span class="token bg-13" title="Token 13: '6'">6</span><span class="token bg-14" title="Token 14: '):\n'">):
+</span><span class="token bg-0" title="Token 15: '   '">   </span><span class="token bg-1" title="Token 16: ' print'"> print</span><span class="token bg-2" title="Token 17: '('">(</span><span class="token bg-3" title="Token 18: 'outer'">outer</span><span class="token bg-4" title="Token 19: ','">,</span><span class="token bg-5" title="Token 20: ' inner'"> inner</span><span class="token bg-6" title="Token 21: ')'">)</span></pre>
+</div>
+</div>
 
 
+Of course, you might argue that the example above is somewhat contrieved, so let's consider another example.
 
+### Example 2: APL vs Q vs Python
 
+[kdb+](https://en.wikipedia.org/wiki/Kdb%2B) is quantitative finance's sweetheart; a somewhat obscure time-series DB, sporting an [APL](https://en.wikipedia.org/wiki/APL_(programming_language)) dialect called [K](https://en.wikipedia.org/wiki/K_(programming_language)), and a thin, more readable wrapper called [Q](https://en.wikipedia.org/wiki/Q_(programming_language_from_Kx_Systems)), where symbolic identifiers are often traded for more explicit English words. 
 
+How does APL compare to an equivalent Q program, in terms of tokens? And what about Python with numpy and pandas (effectively using Python as an array-oriented DSL)?
 
+In the following, we compute a weighted 3-period moving average by symbol, filtering for symbols where average is greater than 100. In APL this is written as follows:
 
-Instead, I'd like to focus on the way we use limited resources such as context size: a large context window allows us to "waste" more tokens, but it helps very little with compute costs. Even though programming languages are well-structured relatively terse when compared to natural language, they are not necessarily token-efficient.
-
-For instance, consider the following code:
-
+```apl
+result←{⍵/⍨100<+/⍵}¨{(3÷+/⍳3)×+/(⍳3)×¨3↑¨,\\⍵}⌸prices
 ```
-... example C-like program ...
-```
 
-as compared to:
+Now, notice how the usage of Unicode characters **explodes** into several non-printable tokens:
 
-```
-... example Python ...
-```
+<div> <!-- APL -->
 
-as compared to:
+<div class="output-section">
+    <h4>APL: 50 tokens</h4>
+    <pre class="token-container"><span class="token bg-0" title="Token 0: 'result'">result</span><span class="token bg-1" title="Token 1: '←'">←</span><span class="token bg-2" title="Token 2: '{'">�</span><span class="token bg-3" title="Token 3: '�'">�</span><span class="token bg-4" title="Token 4: '�'">�</span><span class="token bg-5" title="Token 5: '�'">�</span><span class="token bg-6" title="Token 6: '/'">/</span><span class="token bg-7" title="Token 7: '�'">�</span><span class="token bg-8" title="Token 8: '�'">�</span><span class="token bg-9" title="Token 9: '�'">�</span><span class="token bg-10" title="Token 10: '100'">100</span><span class="token bg-11" title="Token 11: '&lt;'">&lt;</span><span class="token bg-12" title="Token 12: '+/'">+/</span><span class="token bg-13" title="Token 13: '�'">�</span><span class="token bg-14" title="Token 14: '�'">�</span><span class="token bg-0" title="Token 15: '�'">�</span><span class="token bg-1" title="Token 16: '}'">}</span><span class="token bg-2" title="Token 17: '¨'">¨</span><span class="token bg-3" title="Token 18: '{('">{(</span><span class="token bg-4" title="Token 19: '3'">3</span><span class="token bg-5" title="Token 20: '�'">�</span><span class="token bg-6" title="Token 21: '�'">�</span><span class="token bg-7" title="Token 22: '+/'">+/</span><span class="token bg-8" title="Token 23: '�'">�</span><span class="token bg-9" title="Token 24: '�'">�</span><span class="token bg-10" title="Token 25: '�'">�</span><span class="token bg-11" title="Token 26: '3'">3</span><span class="token bg-12" title="Token 27: ')'">)</span><span class="token bg-13" title="Token 28: '×'">×</span><span class="token bg-14" title="Token 29: '+'">+</span><span class="token bg-0" title="Token 30: '/('">/(</span><span class="token bg-1" title="Token 31: '�'">�</span><span class="token bg-2" title="Token 32: '�'">�</span><span class="token bg-3" title="Token 33: '�'">�</span><span class="token bg-4" title="Token 34: '3'">3</span><span class="token bg-5" title="Token 35: ')'">)</span><span class="token bg-6" title="Token 36: '×'">×</span><span class="token bg-7" title="Token 37: '¨'">¨</span><span class="token bg-8" title="Token 38: '3'">3</span><span class="token bg-9" title="Token 39: '↑'">↑</span><span class="token bg-10" title="Token 40: '¨'">¨</span><span class="token bg-11" title="Token 41: ',\\'">,\</span><span class="token bg-12" title="Token 42: '�'">�</span><span class="token bg-13" title="Token 43: '�'">�</span><span class="token bg-14" title="Token 44: '�'">�</span><span class="token bg-0" title="Token 45: '}'">}</span><span class="token bg-1" title="Token 46: '�'">�</span><span class="token bg-2" title="Token 47: '�'">�</span><span class="token bg-3" title="Token 48: '�'">�</span><span class="token bg-4" title="Token 49: 'prices'">prices</span></pre>
+</div>
 
-```
-pseudo-code
-```
+Somehow surprisingly, the same code in Q, even if it's more readable and, some might argue, more verbose, has actually a lower token count:  
 
-This made me think. The way _we_, as humans, think of code, does not necessarily correspond to an efficient representation for an LLM.
+<div class="output-section">
+    <h4>Q (kdb+): 34 tokens (+32% vs APL)</h4>
+    <pre class="token-container"><span class="token bg-0" title="Token 0: 'result'">result</span><span class="token bg-1" title="Token 1: ':'">:</span><span class="token bg-2" title="Token 2: ' select'"> select</span><span class="token bg-3" title="Token 3: ' from'"> from</span><span class="token bg-4" title="Token 4: ' (\n'"> (
+</span><span class="token bg-5" title="Token 5: ' '"> </span><span class="token bg-6" title="Token 6: ' select'"> select</span><span class="token bg-7" title="Token 7: ' sym'"> sym</span><span class="token bg-8" title="Token 8: ','>,</span><span class="token bg-9" title="Token 9: ' w'"> w</span><span class="token bg-10" title="Token 10: 'avg'">avg</span><span class="token bg-11" title="Token 11: ':'">:</span><span class="token bg-12" title="Token 12: ' ('"> (</span><span class="token bg-13" title="Token 13: '1'">1</span><span class="token bg-14" title="Token 14: ' '"> </span><span class="token bg-0" title="Token 15: '2'">2</span><span class="token bg-1" title="Token 16: ' '"> </span><span class="token bg-2" title="Token 17: '3'">3</span><span class="token bg-3" title="Token 18: ' w'"> w</span><span class="token bg-4" title="Token 19: 'avg'">avg</span><span class="token bg-5" title="Token 20: ' price'"> price</span><span class="token bg-6" title="Token 21: ')'">)</span><span class="token bg-7" title="Token 22: ' by'"> by</span><span class="token bg-8" title="Token 23: ' sym'"> sym</span><span class="token bg-9" title="Token 24: ' from'"> from</span><span class="token bg-10" title="Token 25: ' prices'"> prices</span><span class="token bg-11" title="Token 26: '\n'">
+</span><span class="token bg-12" title="Token 27: ')'">)</span><span class="token bg-13" title="Token 28: ' where'"> where</span><span class="token bg-14" title="Token 29: ' w'"> w</span><span class="token bg-0" title="Token 30: 'avg'">avg</span><span class="token bg-1" title="Token 31: ' >'"> ></span><span class="token bg-2" title="Token 32: ' '"> </span><span class="token bg-3" title="Token 33: '100'">100</span></pre>
+</div>
 
-What an LLM-specific programming language would look like?
+<!--div class="output-section">
+    <pre class="section-title">
+Q (explicit): 36 tokens (+28% vs APL)
+Readability: ★★★★★ (fully explicit operations)</pre>
+    <pre class="token-container"><span class="token bg-0" title="Token 0: 'result'">result</span><span class="token bg-1" title="Token 1: ':'">:</span><span class="token bg-2" title="Token 2: ' select'"> select</span><span class="token bg-3" title="Token 3: ' from'"> from</span><span class="token bg-4" title="Token 4: ' (\n'"> (
+</span><span class="token bg-5" title="Token 5: ' '"> </span><span class="token bg-6" title="Token 6: ' update'"> update</span><span class="token bg-7" title="Token 7: ' w'"> w</span><span class="token bg-8" title="Token 8: 'avg'">avg</span><span class="token bg-9" title="Token 9: ':'">:</span><span class="token bg-10" title="Token 10: ' ('"> (</span><span class="token bg-11" title="Token 11: '1'">1</span><span class="token bg-12" title="Token 12: ' '"> </span><span class="token bg-13" title="Token 13: '2'">2</span><span class="token bg-14" title="Token 14: ' '"> </span><span class="token bg-0" title="Token 15: '3'">3</span><span class="token bg-1" title="Token 16: ')'">)</span><span class="token bg-2" title="Token 17: ' w'"> w</span><span class="token bg-3" title="Token 18: 'avg'">avg</span><span class="token bg-4" title="Token 19: ' '"> </span><span class="token bg-5" title="Token 20: '3'">3</span><span class="token bg-6" title="Token 21: ' m'"> m</span><span class="token bg-7" title="Token 22: 'count'">count</span><span class="token bg-8" title="Token 23: ' price'"> price</span><span class="token bg-9" title="Token 24: ' by'"> by</span><span class="token bg-10" title="Token 25: ' sym'"> sym</span><span class="token bg-11" title="Token 26: ' from'"> from</span><span class="token bg-12" title="Token 27: ' prices'"> prices</span><span class="token bg-13" title="Token 28: '\n'">
+</span><span class="token bg-14" title="Token 29: ')'">)</span><span class="token bg-0" title="Token 30: ' where'"> where</span><span class="token bg-1" title="Token 31: ' w'"> w</span><span class="token bg-2" title="Token 32: 'avg'">avg</span><span class="token bg-3" title="Token 33: ' >'"> ></span><span class="token bg-4" title="Token 34: ' '"> </span><span class="token bg-5" title="Token 35: '100'">100</span></pre>
+</div-->
+
+Even more interestingly, the Python version does have a higher token count than Q’s, but it’s only 4 tokens more than APL’s, while being far more readable!
+
+<div class="output-section">
+    <h4>Python (pandas): 54 tokens (-8% vs APL)</h4>
+    <pre class="token-container"><span class="token bg-0" title="Token 0: 'result'">result</span><span class="token bg-1" title="Token 1: ' ='"> =</span><span class="token bg-2" title="Token 2: ' (\n'"> (
+</span><span class="token bg-3" title="Token 3: '   '">   </span><span class="token bg-4" title="Token 4: ' prices'"> prices</span><span class="token bg-5" title="Token 5: '.groupby'">.groupby</span><span class="token bg-6" title="Token 6: &quot;('&quot;">('</span><span class="token bg-7" title="Token 7: 'sym'">sym</span><span class="token bg-8" title="Token 8: &quot;')\n&quot;">')
+</span><span class="token bg-9" title="Token 9: '   '">   </span><span class="token bg-10" title="Token 10: ' .'"> .</span><span class="token bg-11" title="Token 11: 'apply'">apply</span><span class="token bg-12" title="Token 12: '(lambda'">(lambda</span><span class="token bg-13" title="Token 13: ' g'"> g</span><span class="token bg-14" title="Token 14: ':'">:</span><span class="token bg-0" title="Token 15: ' pd'"> pd</span><span class="token bg-1" title="Token 16: '.Series'">.Series</span><span class="token bg-2" title="Token 17: '({\n'">({
+</span><span class="token bg-3" title="Token 18: '       '">       </span><span class="token bg-4" title="Token 19: &quot; '&quot;"> '</span><span class="token bg-5" title="Token 20: 'w'">w</span><span class="token bg-6" title="Token 21: 'avg'">avg</span><span class="token bg-7" title="Token 22: &quot;':&quot;">':</span><span class="token bg-8" title="Token 23: ' np'"> np</span><span class="token bg-9" title="Token 24: '.average'">.average</span><span class="token bg-10" title="Token 25: '(g'">(g</span><span class="token bg-11" title="Token 26: &quot;['&quot;">['</span><span class="token bg-12" title="Token 27: 'price'">price</span><span class="token bg-13" title="Token 28: &quot;'].&quot;">']. </span><span class="token bg-14" title="Token 29: 'rolling'">rolling</span><span class="token bg-0" title="Token 30: '('">(</span><span class="token bg-1" title="Token 31: '3'">3</span><span class="token bg-2" title="Token 32: '),'">),</span><span class="token bg-3" title="Token 33: ' weights'"> weights</span><span class="token bg-4" title="Token 34: '=['">=[</span><span class="token bg-5" title="Token 35: '1'">1</span><span class="token bg-6" title="Token 36: ','>,</span><span class="token bg-7" title="Token 37: '2'">2</span><span class="token bg-8" title="Token 38: ','>,</span><span class="token bg-9" title="Token 39: '3'">3</span><span class="token bg-10" title="Token 40: '])\n'">])
+</span><span class="token bg-11" title="Token 41: '   '">   </span><span class="token bg-12" title="Token 42: ' }))\n'"> }))
+</span><span class="token bg-13" title="Token 43: '   '">   </span><span class="token bg-14" title="Token 44: ' .'"> .</span><span class="token bg-0" title="Token 45: 'query'">query</span><span class="token bg-1" title="Token 46: &quot;('&quot;">('</span><span class="token bg-2" title="Token 47: 'w'">w</span><span class="token bg-3" title="Token 48: 'avg'">avg</span><span class="token bg-4" title="Token 49: ' >'"> ></span><span class="token bg-5" title="Token 50: ' '"> </span><span class="token bg-6" title="Token 51: '100'">100</span><span class="token bg-7" title="Token 52: &quot;')\n&quot;">')
+</span><span class="token bg-8" title="Token 53: ')'">)</span></pre>
+</div>
+</div> <!-- END APL -->
 
 
+## The Return of Language-Oriented Programming
 
-> "Everything is a compiler if you are obsessed enough"
+All this premise to say that, if we can abstract away parts of our domain into a higher-level language, we can effectively use the LLM to 
 
+1. generate the implementation for a domain-specific language
+2. generate **documentation** and **examples** for such our DSL
+3. point the LLM to docs and examples and prompt it to generate more code **using our DSL**
 
-Now, writing a complete, new programming language might be some heavy lift; but an LLM makes it way easier to do the heavy lifting: we can actually let our imagination roam free and let the robot sketch the parser and handle a good part of the implementation, while we just bikeshed the syntax.
+The Domain-Specific Language is now not only a means of communication between a domain-expert and the developer, but also a means of communication between the developer, the domain-expert and the language model.
 
-Now, why would we want to do that?
+Moreover, if the language is designed well, it should lead to a more efficient usage of the context window.
 
-....\
+### Example 1: Piano DSL
 
-LM-Oriented Programming
+I was reading [Alexander Kaminski' blog post](https://xlii.space/eng/haskell-feels-easy/) about "microdiagram DSLs"
 
+> The core concept is quite straightforward: instead of having one language for all diagrams, have multiple languages for various purposes. For example, this diagram is designed to help learn piano by illustrating the relationship between different keys.
+> <img src="/assets/lop/dsl-microdiag-piano.png" width=50% />
 
+I immediately wondered if I could generate something similar using Claude:
 
-The paper describes an approach to developing large software systems
-where one key phase is to define a high-level domain-specific programming language.
+> design a DSL to design piano diagrams like these:
+> 
+> https://xlii.space/eng/haskell-feels-easy/
+> 
+> then implement it in JS and show me some examples with their rendering
 
-Rather than traditional top-down or bottom-up development, LOP uses a "middle-out" approach:
+[This is the result](https://claude.site/public/artifacts/1660b34e-939e-4ccf-a403-4c29cbad48e8/embed?utm_source=embedded_artifact&utm_medium=iframe&utm_campaign=artifact_frame):
 
-1. Design a formally specified, domain-oriented language suited for the specific problem domain
+<iframe src="https://claude.site/public/artifacts/1660b34e-939e-4ccf-a403-4c29cbad48e8/embed" title="Claude Artifact" width="100%" height="600" frameborder="0" allow="clipboard-write" allowfullscreen>
+</iframe>
+
+The implementation is fully-functional and interactive
+
+### Example 2: Business Rules
+
+Another classic example of a DSL is Business Rules Languages. To be more precise, BRLs are more of a "framework" to define business rules, which _then_ encode the actual domain logic.
+
+> design and implement a business rules language. Then implement it in JS and show me some examples
+
+[Here's the result](https://claude.site/public/artifacts/ade8dd7f-1883-4f59-9372-be464834b6d9/embed?utm_source=embedded_artifact&utm_medium=iframe&utm_campaign=artifact_frame):
+
+<iframe src="https://claude.site/public/artifacts/ade8dd7f-1883-4f59-9372-be464834b6d9/embed" title="Claude Artifact" width="100%" height="600" frameborder="0" allow="clipboard-write" allowfullscreen>
+</iframe>
+
+Now, if you ignore that [this is clearly reminiscent of Drools to the point of plagiarism](https://kie.apache.org/docs/10.0.x/drools/drools/language-reference-traditional/index.html#drl-rules-THEN-con_drl-rules-traditional), and that the implementation is really poor, you still got a functional PoC, with the added benefit that the LLM is fully aware of the syntax and can assist you in iterating over it.
+
+The goal here is not necessarily to perfectly implement a language; instead we can quickly iterate on a prototype, possibly delivering this to end users, while the implementation is improved. 
+
+Incidentally, this is how the original [LOP paper][lop] proposes to carry on the work; rather than traditional top-down or bottom-up development, LOP uses a "middle-out" approach:
+
+1. Design a domain-oriented language suited for the specific problem domain
 
 2. Split development into two independent parallel tracks:
 
     - Implement the system using this middle-level language
     - Implement a compiler/interpreter for the language
 
-Now, some programming languages and some programming language communities are more akin to doing that. For instance, languages in the LISP and Scheme lineage have a long tradition of writing their own embedded "mini-languages"; which is also one of the reasons people say that LISP codebases are hard to maintain [citation needed].
 
+## What About Maintainance?
 
+A common critique about the cost of maintaining and working with DSLs is that you now have to maintain not just documentation but also tooling. With the advent of LLMs, these special-purpose, small languages are much more cost-effective. 
 
+1. docs and examples can be very often generated by the LLM itself.
+2. if the main interaction pattern is code-gen via an LLM, there is far fewer pressure to implement comprehensive tooling, such as IDE integrations, because a coding agent might be happy enough with a CLI tool or an MCP server
 
+Another common critique is about the cost of defining an external DSL as opposed to an embedded DSL. 
 
-Key Advantages
+- An **external DSL** is the type of language that we have shown in this blog post, with its own syntax, parser, interpreter/compilation pipeline.
+- An **internal DSL** or "fluent interface" is a style of library design where function or method invocations are chained together to form "sentences". For instance, [Martin Fowler's classic essay mentions JMock](https://martinfowler.com/bliki/FluentInterface.html):
 
-- High productivity: Systems end up much smaller (order of magnitude fewer lines of code)
-- Maintainability: Smaller codebase, localized design decisions
-- Portability: Only the language implementation needs porting to new platforms
-- Reusability: Domain knowledge captured in the language can be reused across projects
-- User-enhanceable: Top-level language can serve as a powerful macro system for users
+    ```java
+    mock.expects(once()).method(“m”).with( or(stringContains(“hello”),
+                                            stringContains(“howdy”)) );
+    ```
+    but I am sure nowadays you'll have seen plenty of those. The more the syntax of your "host" language is flexible, the more your "internal" DSL will look like its own language. For instance, at some point Scala was notorious for [going a bit too wild with operators](https://www.scala-graph.org/guides/1.x/core-initializing.html#EdgeFactories).
 
+Depending on how flexible your language you might not need to reach for an external DSL; for instance [Racket allows to define your own syntax in term of the core syntax](https://docs.racket-lang.org/guide/languages.html); in fact [Rhombus is a recent addition to the family with whitespace-delimited, Python-like syntax](https://docs.racket-lang.org/rhombus/index.html)
 
+In general, the way you will implement your language is really a detail, at this point. But because of the way LLMs change language economics, I would argue that the cost of defining your own syntax instead of leaning onto a host language's is now much lower; in fact, I would even dare to say that you might want to prefer flexible syntax, so that you will be able to optimize for token cost.
+
+## Conclusions
+
+Over the years the pendulum swings back and forth, when it comes to domain-specific languages. In late 2000s and early 2010s there was an explosion of newer programming languages, and there was a lot of excitement around DSLs, including [Debasish Ghosh's classic "DSLs in Action"](https://www.manning.com/books/dsls-in-action)[^3]. 
+
+There has been something of a “winter” in DSL design and development due to the high maintenance costs and the tooling expectations from end users. I hope that in the avalanche of changes AI is bringing to our daily lives, it will also ignite a renewed wave of enthusiasm for language design. 
+
+If it won't, well, I know [I'll find a way](https://x.com/evacchi/status/1971956291913634265).
+
+[^1]: Yes, I hear you: context windows are getting larger; however, research has shown that performance may suffer at much smaller lengths than the theoretical maximum context size. e.g.:
+    - Context Is What You Need: The Maximum Effective Context Window for Real World Limits of LLMs (Paulsen, 2025)
+    - Context Length Alone Hurts LLM Performance Despite Perfect Retrieval (Du et al., 2025)
+    - LLM Effective Context Limits – Why Does the Effective Context Length of LLMs Fall Short? (October 2024)
+
+[^2]: Throughout the rest of the post, we used `tiktoken` with `cl100k_base`, used by GPT-4 and similar to Claude's (`tiktoken.get_encoding("cl100k_base")`)
+
+[^3]: In fact, [Guglielmo Iozzia is currently writing a book about Domain-Specific *Small Language Models*](https://www.manning.com/books/domain-specific-small-language-models). 
 
 [lop]: https://citeseerx.ist.psu.edu/document?repid=rep1&type=pdf&doi=825a90a7eaebd7082d883b198e1a218295e0ed3b
 
-
-As a passionate language nerd, as well as compiler contributor, and scholar the advent of LLMs
-kind of scares and intrigues me.
-
-It scares me, because it is changing the way people think about coding.
-
-It intrigues me, because it _is_ changing the way people think about code.
-
-Developing a programming language from scratch, even if small, is always a complex endeavour.
-
-But what if we let the LLM do the boring, heavy-lifting part, like writing the parser?
-
-Moreover, we talk a lot about context management.
-
-LLMs are biased towards writing MORE code, they will write more code before they search for a library.
-They work like that coworker who's not scared of writing code: they will write some code and if it won't work they will write EVEN MORE CODE until it works.
-
-What if we used LLMs to write DSLs and then let _them_ write the code for that DSL?
-
-1. we reduce the number of lines of code, smaller context
-2. we make it clearer what the language is doing
-3. we can tailor the level of the language to the "understanding" of the LLM
-4. we can iterate more easily
-
-
-LLMs change programming language economics 
-
-
-## more notes
-
-I might be trying Nix, because I know I won't have to waste too much time learning all the quirks of that weird config
