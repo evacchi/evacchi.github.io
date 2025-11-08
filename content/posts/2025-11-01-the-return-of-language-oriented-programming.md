@@ -3,7 +3,11 @@ title: 'The Return of Language-Oriented Programming'
 author: 'Edoardo Vacchi'
 date: 2025-11-01
 tags: [dsl, language-oriented-programming]
+cover: /assets/lop/cover.jpg
 ---
+
+<img src="/assets/lop/cover.jpg" alt="Spoof of 'The Return of the Pink Panther' with a dragon in place of the panther, and the silhouette of the knight instead of Inspector Clouseau" width="100%">
+
 
 I've been wondering **what LLMs mean for language design and implementation**. Some believe that, because language models are obviously trained on existing content, they are inherently less capable of assisting users with new programming languages. Intuitively this makes sense. On the other hand, language models are definitely excellent at mimicking patterns, and most programming languages are similar.
 
