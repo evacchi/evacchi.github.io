@@ -1,5 +1,4 @@
 ---
-tags: WASM Parser Kaitai
 date: "2022-05-09T00:00:00Z"
 tags: [wasm, parser, kaitai]
 title: Parsing A WebAssembly Binary With Kaitai Struct

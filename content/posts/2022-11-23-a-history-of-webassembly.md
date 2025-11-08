@@ -1,5 +1,4 @@
 ---
-tags: Wasm Compilers History
 date: "2022-11-23T00:00:00Z"
 tags: 
   - wasm

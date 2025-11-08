@@ -1,5 +1,4 @@
 ---
-tags: PhD
 date: "2015-01-23T00:00:00Z"
 image: /assets/article_images/2014-08-29-welcome-to-jekyll/desktop.jpg
 tags: [phd]

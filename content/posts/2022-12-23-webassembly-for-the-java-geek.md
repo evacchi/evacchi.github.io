@@ -1,5 +1,4 @@
 ---
-tags: Wasm Java History
 date: "2022-12-23T00:00:00Z"
 tags: 
   - wasm
