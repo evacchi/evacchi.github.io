@@ -6,16 +6,16 @@ tags: [dsl, language-oriented-programming]
 cover: /assets/lop/cover.jpg
 ---
 
-<img src="/assets/lop/cover.jpg" alt="Spoof of 'The Return of the Pink Panther' with a dragon in place of the panther, and the silhouette of the knight instead of Inspector Clouseau" width="100%">
+<img src="/assets/lop/cover.jpg" alt="Spoof of 'The Return of the Pink Panther' with a dragon in place of the panther, and the silhouette of the knight instead of Inspector Clouseau" title="Spoof of 'The Return of the Pink Panther' with a dragon in place of the panther, and the silhouette of the knight instead of Inspector Clouseau" width="100%"/>
 
 
 I've been wondering **what LLMs mean for language design and implementation**. Some believe that, because language models are obviously trained on existing content, they are inherently less capable of assisting users with new programming languages. Intuitively this makes sense. On the other hand, language models are definitely excellent at mimicking patterns, and most programming languages are similar.
 
 [Simon Wilson has a "hunch"](https://simonwillison.net/2025/Nov/7/llms-for-new-programming-languages/#atom-everything) that LLMs actually make it _easier_ to build a new programming language. In fact, [Richard Felman has argued that this might be the "best time to create new programming languages"](https://www.youtube.com/watch?v=ZsBHc-J9f8o); [Maxime Chevalier has been developing her own experimental programming language](https://x.com/Love2Code/status/1950622166166241767?ref_src=twsrc%5Etfw) called [Plush](https://github.com/maximecb/plush), porting ["many example programs with the help of LLMs"](https://x.com/Love2Code/status/1986900389631811723). 
 
-If anything, LLMs might be shifting the cost of programming language development economics, making it possibly even simpler to build your own. As a self-professed ["programming-language nerd" and compiler-enthusiast](https://x.com/evacchi/status/1971956291913634265), that just makes me excited.
+If anything, LLMs might be shifting the cost of programming language development economics, making it possibly even simpler to build your own. As a self-professed ["programming-language nerd" and compiler-enthusiast](https://x.com/evacchi/), that just makes me excited.
 
-**Disclaimer**: you should _not_ think of this as of a fully-fleshed out essay, rather it is a collection of ideas that I just want share in the hope to spark some interesting conversation!
+**Disclaimer**: you should _not_ think of this as of a fully-fleshed out essay, rather it is a collection of ideas that I just want share in the hope to spark some interesting conversation! Some code examples have been generated using Claude and a bit of Python. If you find mistakes, let me know! 
 
 ## Domain-Specific Languages and Language-Oriented Programming
 
