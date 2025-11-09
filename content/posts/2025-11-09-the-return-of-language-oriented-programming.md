@@ -1,7 +1,7 @@
 ---
 title: 'The Return of Language-Oriented Programming'
 author: 'Edoardo Vacchi'
-date: 2025-11-01
+date: 2025-11-09
 tags: [dsl, language-oriented-programming]
 cover: 
   image: /assets/lop/cover.jpg
