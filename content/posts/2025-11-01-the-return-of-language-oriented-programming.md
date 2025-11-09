@@ -225,7 +225,7 @@ Even more interestingly, the Python version does have a higher token count than 
 </div>
 </div> <!-- END APL -->
 
-### Example 3: Token-Oriented Object Notation" (TOON)
+### Example 3: Token-Oriented Object Notation (TOON)
 
 I like this example, because I did not come up with it. [Johann Schopplich](https://x.com/jschopplich) has proposed the ["Token-Oriented Object Notation" (TOON)](https://github.com/toon-format/toon#readme), a more compact alternative to JSON. The authors claim "typically 30-60% fewer tokens on large uniform arrays vs formatted JSON". In the words of its readme:
 
@@ -324,11 +324,11 @@ In general, the way you will implement your language is really a detail, at this
 
 ## Conclusions
 
-Over the years the pendulum swings back and forth, when it comes to domain-specific languages. In late 2000s and early 2010s there was an explosion of newer programming languages, and there was a lot of excitement around DSLs, including [Debasish Ghosh's classic "DSLs in Action"](https://www.manning.com/books/dsls-in-action)[^3]. 
+Over the years the pendulum has swung back and forth, when it comes to domain-specific languages. In late 2000s and early 2010s there was an explosion of newer programming languages, and there was a lot of excitement around DSLs, including [Debasish Ghosh's classic "DSLs in Action"](https://www.manning.com/books/dsls-in-action)[^3]. 
 
-In this blog post we only explored the syntactic dimension of "token-efficiency": I invite you to explore more of this design space, including semantics; I, for one, will welcome more crazy DSL implementations!
+In recent years, there has been something of a “winter” in DSL design and development due to the high maintenance costs and the tooling expectations from end users. This blog post explored the syntactic dimension of "token-efficiency" in DSL design: I invite you to explore more of this space, including semantics; I, for one, will welcome more crazy DSL implementations!
 
-There has been something of a “winter” in DSL design and development due to the high maintenance costs and the tooling expectations from end users. I hope that in the avalanche of changes AI is bringing to our daily lives, it will also ignite a renewed wave of enthusiasm for language design. 
+I hope that with the avalanche of changes AI is bringing to our daily lives, it will also ignite a renewed wave of enthusiasm for language design. 
 
 If it won't, well, I know [I'll find a way](https://x.com/evacchi/status/1971956291913634265).
 
