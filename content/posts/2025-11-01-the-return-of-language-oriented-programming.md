@@ -3,7 +3,8 @@ title: 'The Return of Language-Oriented Programming'
 author: 'Edoardo Vacchi'
 date: 2025-11-01
 tags: [dsl, language-oriented-programming]
-cover: /assets/lop/cover.jpg
+cover: 
+  image: /assets/lop/cover.jpg
 ---
 
 <img src="/assets/lop/cover.jpg" alt="Spoof of 'The Return of the Pink Panther' with a dragon in place of the panther, and the silhouette of the knight instead of Inspector Clouseau" title="Spoof of 'The Return of the Pink Panther' with a dragon in place of the panther, and the silhouette of the knight instead of Inspector Clouseau" width="100%"/>
@@ -22,16 +23,18 @@ If anything, LLMs might be shifting the cost of programming language development
 
 One of my favorite articles about domain-specific languages is a classic from 1994 where M.C. Ward introduces the idea of [Language-Oriented Programming][lop]. In essence, LOP extends the idea of designing a large software system in layers, with one layer being a language definition.
 
-<div style="text-align:center"><img src=/assets/lop/dsl-middle-out.png width=100% /></div>
+<div style="text-align:center"><img src=/assets/lop/dsl-middle-out.png width=100% alt="The 'middle-out' diagram found in the paper next to the poster for the Silicon Valley series, where 'middle-out compression' is discovered over a decidedly NSFW argument" title="The 'middle-out' diagram found in the paper next to the poster for the Silicon Valley series, where 'middle-out compression' is discovered over a decidedly NSFW argument" />
+<span style="font-style: italic; font-size: small; line-height: .5">The 'middle-out' diagram found in the paper next to the poster for the Silicon Valley series, where 'middle-out compression' is discovered over a decidedly NSFW argument</span>
+</div>
 
-In fact, rather than traditional top-down or bottom-up development, LOP uses a "middle-out" approach:
+Rather than traditional top-down or bottom-up development, LOP proposes a "middle-out" approach:
 
 1. Design a domain-oriented language suited for the specific problem domain
 2. Split development into two independent parallel tracks:
     - Implement the system using this middle-level language
     - Implement a compiler/interpreter for the language
 
-[Domain-Specific Languages](https://martinfowler.com/books/dsl.html) are small languages designed to focus on a specific aspect of a software system. We deal with DSLs every day: SQL can be considered a DSL, LaTeX is a DSL, AWK is a DSL, Kubernetes' YAMLs are a DSL They are "domain-specific" because they are used to write code for a given "subdomain" of the software system. In this sense, they have been also described as a means of communcation between a developer and a "domain-expert". The holy grail of computing for many years was to let such "domain experts" write the code themselves, while developers would only validate it and deploy it in the large system.
+[Domain-Specific Languages](https://martinfowler.com/books/dsl.html) are small languages designed to focus on a specific aspect of a software system. We deal with DSLs every day: SQL can be considered a DSL, LaTeX is a DSL, AWK is a DSL, Kubernetes' YAMLs are a DSL. They are "domain-specific" because they are used to write code for a given "subdomain" of the software system. In this sense, they have been also described as a means of communcation between a developer and a "domain-expert". The holy grail of computing for many years was to let such "domain experts" write the code themselves, while developers would only validate it and deploy it in the large system.
 
 Now it so happens that coding agents are pretty good at generating code, to the point that [Andrey Karpathy claimed](https://x.com/karpathy/status/1617979122625712128) that "The hottest new programming language is English"!
 
@@ -39,7 +42,7 @@ So, I've been thinking: what if instead of just generating code for the language
 
 But then, what would one such language look like? [Sergei Egorov shared a thread with his thoughts on a similar matter](https://x.com/bsideup/status/1955412035052900587). I myself I've been wondering if a programming language for LLMs would be some kind of mixture between a high-level and a low-level language: in that we want the language to be terse, but at the same time low-level enough to implement some kind of VM for it. 
 
-And then again, what would "terseness" mean in this context?
+Then again, what would "terseness" mean in this context?
 
 ## Detour: Token-Efficiency in Programming Languages
 
@@ -125,17 +128,19 @@ But, for the tokenizer of an LLM, no further structure is detected before infere
 </span><span class="token bg-8" title="Token 23: '}'">}</span></pre>
 </div>
 
-In other words, the tokenizer of an LLM being trained in a vast amount of varied text, is not optimized for code; **semantically equivalent code can have wildly different token counts** based purely on formatting choices, identifier naming, or even the presence of comments. 
+In other words, because the tokenizer of an LLM is trained on a vast amount of varied text, it is not specifically optimized for code; **semantically equivalent code can have wildly different token counts** based purely on formatting choices, identifier naming, or even the presence of comments. 
 
-A loop written with short variable names like `i` and `j` consumes fewer tokens than one using `currentIndex` and `nestedIterator`, yet both correspond to a single identifier. This mismatch creates interesting tensions: 
-- for instance, verbose but clear variable names using common English words (`userAuthenticationToken`) may actually be more token-efficient than cryptic abbreviations (`uat` or `usrAuthTkn`). This is because BPE tokenizers are trained on natural language, where complete words like `user`, `authentication`, and `token` are learned as single units. Meanwhile, rare abbreviations (`Tkn`) may be split into multiple character-level tokens (`T`, `k`, `n`), resulting in both poor readability and higher token counts. 
-- when a programming language is processed by its compiler, symbols (e.g. `{`, `}`, `>=` etc) are often transformed, abstracted or even dropped during parsing; however, in LLM tokenization, these same symbols persist as literal tokens: code that might look compact can still be token-heavy for a language model
+For instance, complete words like `user`, `authentication`, and `token` tend to be learned as single units; rare abbreviations (`Tkn`) may be split into multiple character-level tokens (`T`, `k`, `n`); symbols usually count as single tokens. It follows that:
+
+- a loop written with short variable names like `i` and `j` does not necessarily consume fewer tokens than one calling them, respectively `outer` and `inner`; 
+- in general, verbose but clear variable names using common English words (`userAuthenticationToken`) may be more token-efficient than abbreviations (`uat` or `usrAuthTkn`); 
+- code that might look compact can still be token-heavy for a language model; comments, symbols and whitespace are often often transformed, abstracted or even dropped during parsing; however, in LLM tokenization, these syntactic construct will usually persist.
 
 Let's consider a few examples.
 
 ### Example 1: JavaScript vs Python
 
-When it comes to token-efficiency, a language like Python might compare more favorably to Javascript even in code  where complexity is comparable, because Python uses fewer symbolic delimiters, favoring whitespace and full words instead. Consider:
+When it comes to token-efficiency, a language like Python might compare more favorably to Javascript. Even in code  where complexity is comparable, Python uses fewer symbolic delimiters, favoring whitespace and full words instead. Consider:
 
 <div>
 
@@ -170,7 +175,7 @@ When it comes to token-efficiency, a language like Python might compare more fav
 </div>
 
 
-Of course, you might argue that the example above is somewhat contrieved, so let's consider another example.
+Of course, you might argue that the example above is somewhat contrieved (it's just two nested loops). Let's consider another example.
 
 ### Example 2: APL vs Q vs Python
 
@@ -248,28 +253,28 @@ I like this example, because I did not come up with it. [Johann Schopplich](http
 >   2,Bob,user
 > ```
 
-TOON is a perfect example of a token-efficient DSL 
+TOON is a perfect example of a token-efficient DSL.
 
 ## The Return of Language-Oriented Programming
 
-All this premise to say that, if we can abstract away parts of our domain into a higher-level language, we can effectively use the LLM to 
+A domain-specific language is by definition smaller in scope than a general-purpose language, so it should be easier to design and implement; moreover, if the language is designed well, it should lead to a more efficient usage of the context window.
 
-1. generate the implementation for a domain-specific language
+If we can abstract away parts of our domain into a higher-level language, we can effectively use the LLM to 
+
+1. generate the implementation of a DSL
 2. generate **documentation** and **examples** for such our DSL
 3. point the LLM to docs and examples and prompt it to generate more code **using our DSL**
 
-So, instead of trying to come up with a general-purpose language for LLMs, instead we define a tiny DSL for each specific subsystem we mean to realize. The Domain-Specific Language is now not only a means of communication between a domain-expert and the developer, but also a means of communication between the developer, the domain-expert and the language model. 
-
-A DSL is by definition smaller in scope than a general-purpose language, so it should be easier to design and implement; moreover, if the language is designed well, it should lead to a more efficient usage of the context window.
+So, instead of trying to come up with a general-purpose language for LLMs, we define a tiny DSL for each specific subsystem we mean to realize. The domain-specific Language is now not only a means of communication between a domain-expert and the developer, but also a means of communication between the developer, the domain-expert and the language model. 
 
 I'm going to show a couple of examples
 
 ### Example 1: Piano DSL
 
-I was reading [Alexander Kaminski' blog post](https://xlii.space/eng/haskell-feels-easy/) about "microdiagram DSLs"
+Days ago, I stumbled upon [Alexander Kaminski' blog post](https://xlii.space/eng/haskell-feels-easy/) about "microdiagram DSLs":
 
 > The core concept is quite straightforward: instead of having one language for all diagrams, have multiple languages for various purposes. For example, this diagram is designed to help learn piano by illustrating the relationship between different keys.
-> <img src="/assets/lop/dsl-microdiag-piano.png" width=50% />
+> <div style="text-align:center"><img src="/assets/lop/dsl-microdiag-piano.png" width=50% /></div>
 
 I immediately wondered if I could generate something similar using Claude:
 
@@ -283,12 +288,11 @@ I immediately wondered if I could generate something similar using Claude:
 
 <a href=https://claude.site/public/artifacts/ade8dd7f-1883-4f59-9372-be464834b6d9/embed target=_blank><img src=/assets/lop/dsl-piano-gen.png width=100% /></a>
 
-
 The implementation is fully-functional and interactive
 
 ### Example 2: Business Rules
 
-Another classic example of a DSL is Business Rules Languages. To be more precise, BRLs are more of a "framework" to define business rules, which _then_ encode the actual domain logic.
+Another classic example of a DSL is Business Rules Languages. To be more precise, BRLs are more of a "framework" to define business rules; then rules _then_ encode the actual domain logic.
 
 > design and implement a business rules language. Then implement it in JS and show me some examples
 
@@ -298,29 +302,29 @@ Another classic example of a DSL is Business Rules Languages. To be more precise
 
 Now, if you ignore that [this is clearly reminiscent of Drools to the point of plagiarism](https://kie.apache.org/docs/10.0.x/drools/drools/language-reference-traditional/index.html#drl-rules-THEN-con_drl-rules-traditional), and that the implementation is really poor, you still got a functional PoC, with the added benefit that the LLM is fully aware of the syntax and can assist you in iterating over it.
 
-The goal here is not necessarily to perfectly implement a language; instead we can quickly iterate on a prototype, possibly delivering this to end users, while the implementation is improved. After all, this is exactly how the original [LOP paper][lop] proposed to carry on the work!
+The goal here isn't necessarily to implement a language perfectly; instead we can quickly iterate on a prototype, possibly delivering this to end users, while the implementation is improved. After all, this is exactly how the original [LOP paper][lop] proposed to carry on the work!
 
 ## What About Maintainance?
 
-A common critique about the cost of maintaining and working with DSLs is that you now have to maintain not just documentation but also tooling. With the advent of LLMs, these special-purpose, small languages are much more cost-effective. 
+A **common critique** about the cost of maintaining and working with DSLs is that **you now have to maintain not just documentation but also tooling**. With the advent of LLMs, these special-purpose, small languages are much more cost-effective. 
 
 1. docs and examples can be very often generated by the LLM itself.
-2. if the main interaction pattern is code-gen via an LLM, there is far fewer pressure to implement comprehensive tooling, such as IDE integrations, because a coding agent might be happy enough with a CLI tool or an MCP server
+2. if the main interaction pattern is code-gen via an LLM, there is far fewer pressure to implement comprehensive tooling, such as a full IDE integrations, because a coding agent might be happy enough with a CLI tool or an MCP server. Other, simpler things, like syntax coloring, can be generated as well.
 
-Another common critique is about the cost of defining an external DSL as opposed to an embedded DSL. 
+**Another common critique** is about the **cost of defining an external DSL as opposed to an internal DSL**. 
 
 - An **external DSL** is the type of language that we have shown in this blog post, with its own syntax, parser, interpreter/compilation pipeline.
-- An **internal DSL** or "fluent interface" is a style of library design where function or method invocations are chained together to form "sentences". For instance, [Martin Fowler's classic essay mentions JMock](https://martinfowler.com/bliki/FluentInterface.html):
+- An **internal** or **embedded DSL** (also _"fluent interface"_) is a style of library design where function or method invocations are chained together to form "sentences". For instance, [Martin Fowler's classic essay mentions JMock](https://martinfowler.com/bliki/FluentInterface.html):
 
     ```java
     mock.expects(once()).method(“m”).with( or(stringContains(“hello”),
                                             stringContains(“howdy”)) );
     ```
-    but I am sure nowadays you'll have seen plenty of those. The more the syntax of your "host" language is flexible, the more your "internal" DSL will look like its own language. For instance, at some point Scala was notorious for [going a bit too wild with operators](https://www.scala-graph.org/guides/1.x/core-initializing.html#EdgeFactories).
+    but I am sure nowadays you'll have seen plenty of those. The more the syntax of your "host" language is flexible, the more your "internal" DSL will look like its own language. For instance, at some point Scala was notorious for [going a bit too wild with operators](https://www.scala-graph.org/guides/1.x/core-initializing.html#EdgeFactories). The benefit of this style is that you don't need to define your own parser and tooling. The downside is that the "host" language is not really aware of your "guest" language, so error messages might be more inscrutable.
 
-Depending on how flexible your language you might not need to reach for an external DSL; for instance [Racket allows to define your own syntax in term of the core syntax](https://docs.racket-lang.org/guide/languages.html); in fact [Rhombus is a recent addition to the family with whitespace-delimited, Python-like syntax](https://docs.racket-lang.org/rhombus/index.html)
+Depending on how flexible your language is, the boundaries between internal and external DSLs might blur: for instance [Racket allows you to define your own syntax in term of the core syntax](https://docs.racket-lang.org/guide/languages.html); in fact [Rhombus is a recent addition to the family, with whitespace-delimited, Python-like syntax](https://docs.racket-lang.org/rhombus/index.html).
 
-In general, the way you will implement your language is really a detail, at this point. But because of the way LLMs change language economics, I would argue that the cost of defining your own syntax instead of leaning onto a host language's is now much lower; in fact, I would even dare to say that you might want to prefer flexible syntax, so that you will be able to optimize for token cost.
+In general, the way you will implement your language is really a detail, at this point. But because of the way LLMs change language economics, I would argue that the cost of defining your own syntax instead of leaning onto the host language's is now much lower; in fact, I would even dare to say that you might want to _prefer_ flexible syntax, so that you will be able to optimize for token cost.
 
 ## Conclusions
 
