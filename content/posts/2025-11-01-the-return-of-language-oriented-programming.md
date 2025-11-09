@@ -8,14 +8,15 @@ cover: /assets/lop/cover.jpg
 
 <img src="/assets/lop/cover.jpg" alt="Spoof of 'The Return of the Pink Panther' with a dragon in place of the panther, and the silhouette of the knight instead of Inspector Clouseau" title="Spoof of 'The Return of the Pink Panther' with a dragon in place of the panther, and the silhouette of the knight instead of Inspector Clouseau" width="100%"/>
 
+I've been wondering **what LLMs mean for language design and implementation**. Some believe that, because language models are obviously trained on existing content, they are inherently less capable of assisting users with new programming languages. Intuitively this makes sense. However:
 
-I've been wondering **what LLMs mean for language design and implementation**. Some believe that, because language models are obviously trained on existing content, they are inherently less capable of assisting users with new programming languages. Intuitively this makes sense. On the other hand, language models are definitely excellent at mimicking patterns, and most programming languages are similar.
+- [Simon Wilson has a "hunch"](https://simonwillison.net/2025/Nov/7/llms-for-new-programming-languages/#atom-everything) that LLMs actually make it _easier_ to build a new programming language;
+- [Richard Felman has argued that this might be the "best time to create new programming languages"](https://www.youtube.com/watch?v=ZsBHc-J9f8o); 
+- [Maxime Chevalier has been developing her own experimental programming language](https://x.com/Love2Code/status/1950622166166241767?ref_src=twsrc%5Etfw) called [Plush](https://github.com/maximecb/plush), porting ["many example programs with the help of LLMs"](https://x.com/Love2Code/status/1986900389631811723). 
 
-[Simon Wilson has a "hunch"](https://simonwillison.net/2025/Nov/7/llms-for-new-programming-languages/#atom-everything) that LLMs actually make it _easier_ to build a new programming language. In fact, [Richard Felman has argued that this might be the "best time to create new programming languages"](https://www.youtube.com/watch?v=ZsBHc-J9f8o); [Maxime Chevalier has been developing her own experimental programming language](https://x.com/Love2Code/status/1950622166166241767?ref_src=twsrc%5Etfw) called [Plush](https://github.com/maximecb/plush), porting ["many example programs with the help of LLMs"](https://x.com/Love2Code/status/1986900389631811723). 
+If anything, LLMs might be shifting the cost of programming language development economics, making it possibly *even simpler* to build your own. As a self-professed ["programming-language nerd" and compiler-enthusiast](https://x.com/evacchi/), that just makes me excited.
 
-If anything, LLMs might be shifting the cost of programming language development economics, making it possibly even simpler to build your own. As a self-professed ["programming-language nerd" and compiler-enthusiast](https://x.com/evacchi/), that just makes me excited.
-
-**Disclaimer**: you should _not_ think of this as of a fully-fleshed out essay, rather it is a collection of ideas that I just want share in the hope to spark some interesting conversation! Some code examples have been generated using Claude and a bit of Python. If you find mistakes, let me know! 
+**Disclaimer**: you should _not_ think of this as of a fully-fleshed out essay, rather it is a collection of ideas that I just want share in the hope to spark some interesting conversation! Some code examples have been generated using Claude and a bit of Python. If you find mistakes, [let](https://twitter.com/evacchi) [me](https://bsky.app/profile/evacchi.dev) [know](https://mastodon.social/@evacchi)! 
 
 ## Domain-Specific Languages and Language-Oriented Programming
 
@@ -27,13 +28,13 @@ Now it so happens that coding agents are pretty good at generating code, to the 
 
 So, I've been thinking: what if instead of just generating code for the languages that LLMs already have in their training set, **we instead let _them_ generate the _implementation_ of a domain-specific language**, and _then_ **use _that_ throughout the rest of a coding session**?
 
-But then, what would one such language look like? [Sergei Egorov shared a thread with his thoughts on a similar matter](https://x.com/bsideup/status/1955412035052900587). I myself I've been wondering if one such language would be some kind of mixture between a high-level and a low-level language: in that we want the language to be terse, but at the same time low-level enough to implement some kind of VM for it.
+But then, what would one such language look like? [Sergei Egorov shared a thread with his thoughts on a similar matter](https://x.com/bsideup/status/1955412035052900587). I myself I've been wondering if a programming language for LLMs would be some kind of mixture between a high-level and a low-level language: in that we want the language to be terse, but at the same time low-level enough to implement some kind of VM for it. 
 
 And then again, what would "terseness" mean in this context?
 
 ## Detour: Token-Efficiency in Programming Languages
 
-Traditional programming languages optimize for human readability, not for token efficiency within an LLM's "context window"[^1].
+Traditional programming languages optimize for human readability, not for token efficiency within an LLM's "context window"[^1]. 
 
 From a language design perspective, there's a **fundamental mismatch in how "tokens" are defined**: while programming language tokenizers split text at whitespace and symbols (which are then usually dropped after parsing), language models treat tokens very differently.
 
@@ -215,6 +216,30 @@ Even more interestingly, the Python version does have a higher token count than 
 </div>
 </div> <!-- END APL -->
 
+### Example 3: Token-Oriented Object Notation" (TOON)
+
+I like this example, because I did not come up with it. [Johann Schopplich](https://x.com/jschopplich) has proposed the ["Token-Oriented Object Notation" (TOON)](https://github.com/toon-format/toon#readme), a more compact alternative to JSON. The authors claim "typically 30-60% fewer tokens on large uniform arrays vs formatted JSON". In the words of its readme:
+
+> AI is becoming cheaper and more accessible, but larger context windows allow for larger data inputs as well. **LLM tokens still cost money** – and standard JSON is verbose and token-expensive:
+> 
+> ```json
+> {
+>   "users": [
+>     { "id": 1, "name": "Alice", "role": "admin" },
+>     { "id": 2, "name": "Bob", "role": "user" }
+>   ]
+> }
+> ```
+> 
+> TOON conveys the same information with **fewer tokens**:
+> 
+> ```
+> users[2]{id,name,role}:
+>   1,Alice,admin
+>   2,Bob,user
+> ```
+
+TOON is a perfect example of a token-efficient DSL 
 
 ## The Return of Language-Oriented Programming
 
@@ -224,9 +249,11 @@ All this premise to say that, if we can abstract away parts of our domain into a
 2. generate **documentation** and **examples** for such our DSL
 3. point the LLM to docs and examples and prompt it to generate more code **using our DSL**
 
-The Domain-Specific Language is now not only a means of communication between a domain-expert and the developer, but also a means of communication between the developer, the domain-expert and the language model.
+So, instead of trying to come up with a general-purpose language for LLMs, instead we define a tiny DSL for each specific subsystem we mean to realize. The Domain-Specific Language is now not only a means of communication between a domain-expert and the developer, but also a means of communication between the developer, the domain-expert and the language model. 
 
-Moreover, if the language is designed well, it should lead to a more efficient usage of the context window.
+A DSL is by definition smaller in scope than a general-purpose language, so it should be easier to design and implement; moreover, if the language is designed well, it should lead to a more efficient usage of the context window.
+
+I'm going to show a couple of examples
 
 ### Example 1: Piano DSL
 
@@ -245,8 +272,11 @@ I immediately wondered if I could generate something similar using Claude:
 
 [This is the result](https://claude.site/public/artifacts/1660b34e-939e-4ccf-a403-4c29cbad48e8/embed?utm_source=embedded_artifact&utm_medium=iframe&utm_campaign=artifact_frame):
 
-<iframe src="https://claude.site/public/artifacts/1660b34e-939e-4ccf-a403-4c29cbad48e8/embed" title="Claude Artifact" width="100%" height="600" frameborder="0" allow="clipboard-write" allowfullscreen>
-</iframe>
+<!--iframe src="https://claude.site/public/artifacts/1660b34e-939e-4ccf-a403-4c29cbad48e8/embed" title="Claude Artifact" width="100%" height="600" frameborder="0" allow="clipboard-write" allowfullscreen>
+</iframe-->
+
+<a href=https://claude.site/public/artifacts/ade8dd7f-1883-4f59-9372-be464834b6d9/embed><img src=/assets/lop/dsl-piano-gen.png width=100% /></a>
+
 
 The implementation is fully-functional and interactive
 
@@ -258,8 +288,12 @@ Another classic example of a DSL is Business Rules Languages. To be more precise
 
 [Here's the result](https://claude.site/public/artifacts/ade8dd7f-1883-4f59-9372-be464834b6d9/embed?utm_source=embedded_artifact&utm_medium=iframe&utm_campaign=artifact_frame):
 
-<iframe src="https://claude.site/public/artifacts/ade8dd7f-1883-4f59-9372-be464834b6d9/embed" title="Claude Artifact" width="100%" height="600" frameborder="0" allow="clipboard-write" allowfullscreen>
-</iframe>
+<!--iframe src="https://claude.site/public/artifacts/ade8dd7f-1883-4f59-9372-be464834b6d9/embed" title="Claude Artifact" width="100%" height="600" frameborder="0" allow="clipboard-write" allowfullscreen>
+</iframe-->
+
+<a href=https://claude.site/public/artifacts/1660b34e-939e-4ccf-a403-4c29cbad48e8/embed><img src=/assets/lop/dsl-brl-gen.png width=100% /></a>
+
+
 
 Now, if you ignore that [this is clearly reminiscent of Drools to the point of plagiarism](https://kie.apache.org/docs/10.0.x/drools/drools/language-reference-traditional/index.html#drl-rules-THEN-con_drl-rules-traditional), and that the implementation is really poor, you still got a functional PoC, with the added benefit that the LLM is fully aware of the syntax and can assist you in iterating over it.
 
@@ -300,6 +334,8 @@ In general, the way you will implement your language is really a detail, at this
 ## Conclusions
 
 Over the years the pendulum swings back and forth, when it comes to domain-specific languages. In late 2000s and early 2010s there was an explosion of newer programming languages, and there was a lot of excitement around DSLs, including [Debasish Ghosh's classic "DSLs in Action"](https://www.manning.com/books/dsls-in-action)[^3]. 
+
+In this blog post we only explored the syntactic dimension of "token-efficiency": I invite you to explore more of this design space, including semantics; I, for one, will welcome more crazy DSL implementations!
 
 There has been something of a “winter” in DSL design and development due to the high maintenance costs and the tooling expectations from end users. I hope that in the avalanche of changes AI is bringing to our daily lives, it will also ignite a renewed wave of enthusiasm for language design. 
 
