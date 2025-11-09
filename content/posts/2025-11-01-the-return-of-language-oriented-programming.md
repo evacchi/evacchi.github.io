@@ -18,9 +18,18 @@ If anything, LLMs might be shifting the cost of programming language development
 
 **Disclaimer**: you should _not_ think of this as of a fully-fleshed out essay, rather it is a collection of ideas that I just want share in the hope to spark some interesting conversation! Some code examples have been generated using Claude and a bit of Python. If you find mistakes, [let](https://twitter.com/evacchi) [me](https://bsky.app/profile/evacchi.dev) [know](https://mastodon.social/@evacchi)! 
 
-## Domain-Specific Languages and Language-Oriented Programming
+## Domain-Specific Languages and Language-Oriented Programming&nbsp;
 
 One of my favorite articles about domain-specific languages is a classic from 1994 where M.C. Ward introduces the idea of [Language-Oriented Programming][lop]. In essence, LOP extends the idea of designing a large software system in layers, with one layer being a language definition.
+
+<div style="text-align:center"><img src=/assets/lop/dsl-middle-out.png width=100% /></div>
+
+In fact, rather than traditional top-down or bottom-up development, LOP uses a "middle-out" approach:
+
+1. Design a domain-oriented language suited for the specific problem domain
+2. Split development into two independent parallel tracks:
+    - Implement the system using this middle-level language
+    - Implement a compiler/interpreter for the language
 
 [Domain-Specific Languages](https://martinfowler.com/books/dsl.html) are small languages designed to focus on a specific aspect of a software system. We deal with DSLs every day: SQL can be considered a DSL, LaTeX is a DSL, AWK is a DSL, Kubernetes' YAMLs are a DSL They are "domain-specific" because they are used to write code for a given "subdomain" of the software system. In this sense, they have been also described as a means of communcation between a developer and a "domain-expert". The holy grail of computing for many years was to let such "domain experts" write the code themselves, while developers would only validate it and deploy it in the large system.
 
@@ -272,10 +281,7 @@ I immediately wondered if I could generate something similar using Claude:
 
 [This is the result](https://claude.site/public/artifacts/1660b34e-939e-4ccf-a403-4c29cbad48e8/embed?utm_source=embedded_artifact&utm_medium=iframe&utm_campaign=artifact_frame):
 
-<!--iframe src="https://claude.site/public/artifacts/1660b34e-939e-4ccf-a403-4c29cbad48e8/embed" title="Claude Artifact" width="100%" height="600" frameborder="0" allow="clipboard-write" allowfullscreen>
-</iframe-->
-
-<a href=https://claude.site/public/artifacts/ade8dd7f-1883-4f59-9372-be464834b6d9/embed><img src=/assets/lop/dsl-piano-gen.png width=100% /></a>
+<a href=https://claude.site/public/artifacts/ade8dd7f-1883-4f59-9372-be464834b6d9/embed target=_blank><img src=/assets/lop/dsl-piano-gen.png width=100% /></a>
 
 
 The implementation is fully-functional and interactive
@@ -288,26 +294,11 @@ Another classic example of a DSL is Business Rules Languages. To be more precise
 
 [Here's the result](https://claude.site/public/artifacts/ade8dd7f-1883-4f59-9372-be464834b6d9/embed?utm_source=embedded_artifact&utm_medium=iframe&utm_campaign=artifact_frame):
 
-<!--iframe src="https://claude.site/public/artifacts/ade8dd7f-1883-4f59-9372-be464834b6d9/embed" title="Claude Artifact" width="100%" height="600" frameborder="0" allow="clipboard-write" allowfullscreen>
-</iframe-->
-
-<a href=https://claude.site/public/artifacts/1660b34e-939e-4ccf-a403-4c29cbad48e8/embed><img src=/assets/lop/dsl-brl-gen.png width=100% /></a>
-
-
+<a href=https://claude.site/public/artifacts/1660b34e-939e-4ccf-a403-4c29cbad48e8/embed target=_blank><img src=/assets/lop/dsl-brl-gen.png width=100% /></a>
 
 Now, if you ignore that [this is clearly reminiscent of Drools to the point of plagiarism](https://kie.apache.org/docs/10.0.x/drools/drools/language-reference-traditional/index.html#drl-rules-THEN-con_drl-rules-traditional), and that the implementation is really poor, you still got a functional PoC, with the added benefit that the LLM is fully aware of the syntax and can assist you in iterating over it.
 
-The goal here is not necessarily to perfectly implement a language; instead we can quickly iterate on a prototype, possibly delivering this to end users, while the implementation is improved. 
-
-Incidentally, this is how the original [LOP paper][lop] proposes to carry on the work; rather than traditional top-down or bottom-up development, LOP uses a "middle-out" approach:
-
-1. Design a domain-oriented language suited for the specific problem domain
-
-2. Split development into two independent parallel tracks:
-
-    - Implement the system using this middle-level language
-    - Implement a compiler/interpreter for the language
-
+The goal here is not necessarily to perfectly implement a language; instead we can quickly iterate on a prototype, possibly delivering this to end users, while the implementation is improved. After all, this is exactly how the original [LOP paper][lop] proposed to carry on the work!
 
 ## What About Maintainance?
 
