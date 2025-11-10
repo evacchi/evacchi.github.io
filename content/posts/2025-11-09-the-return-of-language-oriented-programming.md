@@ -194,7 +194,7 @@ data = {
 }
 ```
 
-the result is `['A']`, because `B` and `C`'s average will be smaller than 100 at the end
+the result is `['A']`, because `B` and `C`'s average will be smaller than 100 at the end.
 
 In [Dyalog APL](https://tryapl.org/) this is written as follows (assuming two vectors, `sym` and `price`, where each index correspond to a `symbol, price` pair):
 
