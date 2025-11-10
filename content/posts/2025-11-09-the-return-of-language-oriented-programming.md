@@ -183,7 +183,7 @@ Of course, you might argue that the example above is somewhat contrieved (it's j
 
 How does APL compare to an equivalent Q program, in terms of tokens? And what about Python with numpy and pandas (effectively using Python as an array-oriented DSL)?
 
-**Update Nov 10**: The original version presented a broken 3-period weighted average; thus it also claimed, incorrectly, that the Python version was shorter (token-wise).
+**Update Nov 10**: The original version presented a broken 3-period weighted average; thus it also claimed, incorrectly, that the Python version was shorter (token-wise). Thanks to [Adám Brudzewsky](https://bsky.app/profile/abrudz.bsky.social/post/3m5bm3tebys2o)
 
 In the following, we compute a 3-period moving average by symbol, selecting the symbols with average greater than 100. For instance, if we have:
 
