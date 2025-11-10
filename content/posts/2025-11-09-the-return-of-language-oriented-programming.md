@@ -183,7 +183,7 @@ Of course, you might argue that the example above is somewhat contrieved (it's j
 
 How does APL compare to an equivalent Q program, in terms of tokens? And what about Python with numpy and pandas (effectively using Python as an array-oriented DSL)?
 
-**Update Nov 10**: The original version presented (broken) examples of a 3-period weighted average. I have updated the examples with a 3-period simple moving average and double-checked that they actually work! The original version claimed that the Python version was shorter (token-wise), but the code was in fact incorrect.
+**Update Nov 10**: The original version presented a broken 3-period weighted average; thus it also claimed, incorrectly, that the Python version was shorter (token-wise).
 
 In the following, we compute a 3-period moving average by symbol, selecting the symbols with average greater than 100. For instance, if we have:
 
@@ -216,6 +216,13 @@ Now, notice how the usage of Unicode characters **explodes** into several non-pr
 
 Somehow surprisingly, the same code in Q, even if it's more readable and, some might argue, more verbose, has actually a slightly lower token count:  
 
+
+<!--
+result:·select·from·(
+··update·wavg:·(1·2·3)·wavg·3·mcount·price·by·sym·from·prices
+)·where·wavg·>·100
+-->
+
 <div class="output-section">
     <h4>Q (kdb+): 26 tokens</h4>
 <pre><span style="background-color: #ffcdd2; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 0: 'select'">select</span><span style="background-color: #f8bbd0; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 1: ' sym'">·sym</span><span style="background-color: #e1bee7; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 2: ' from'">·from</span><span style="background-color: #d1c4e9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 3: ' (\n'">·(
@@ -223,16 +230,16 @@ Somehow surprisingly, the same code in Q, even if it's more readable and, some m
 </span><span style="background-color: #c5cae9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 19: ')'">)</span><span style="background-color: #bbdefb; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 20: ' where'">·where</span><span style="background-color: #b3e5fc; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 21: ' sm'">·sm</span><span style="background-color: #b2dfdb; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 22: 'a'">a</span><span style="background-color: #c8e6c9; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 23: ' &gt;'">·&gt;</span><span style="background-color: #dcedc8; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 24: ' '">·</span><span style="background-color: #f0f4c3; padding: 2px 1px; border: 1px solid #ccc; margin: 0;" title="Token 25: '100'">100</span></pre>
 </div>
 
-<!--div class="output-section">
-    <pre class="section-title">
-Q (explicit): 36 tokens (+28% vs APL)
-Readability: ★★★★★ (fully explicit operations)</pre>
-    <pre class="token-container"><span class="token bg-0" title="Token 0: 'result'">result</span><span class="token bg-1" title="Token 1: ':'">:</span><span class="token bg-2" title="Token 2: ' select'"> select</span><span class="token bg-3" title="Token 3: ' from'"> from</span><span class="token bg-4" title="Token 4: ' (\n'"> (
-</span><span class="token bg-5" title="Token 5: ' '"> </span><span class="token bg-6" title="Token 6: ' update'"> update</span><span class="token bg-7" title="Token 7: ' w'"> w</span><span class="token bg-8" title="Token 8: 'avg'">avg</span><span class="token bg-9" title="Token 9: ':'">:</span><span class="token bg-10" title="Token 10: ' ('"> (</span><span class="token bg-11" title="Token 11: '1'">1</span><span class="token bg-12" title="Token 12: ' '"> </span><span class="token bg-13" title="Token 13: '2'">2</span><span class="token bg-14" title="Token 14: ' '"> </span><span class="token bg-0" title="Token 15: '3'">3</span><span class="token bg-1" title="Token 16: ')'">)</span><span class="token bg-2" title="Token 17: ' w'"> w</span><span class="token bg-3" title="Token 18: 'avg'">avg</span><span class="token bg-4" title="Token 19: ' '"> </span><span class="token bg-5" title="Token 20: '3'">3</span><span class="token bg-6" title="Token 21: ' m'"> m</span><span class="token bg-7" title="Token 22: 'count'">count</span><span class="token bg-8" title="Token 23: ' price'"> price</span><span class="token bg-9" title="Token 24: ' by'"> by</span><span class="token bg-10" title="Token 25: ' sym'"> sym</span><span class="token bg-11" title="Token 26: ' from'"> from</span><span class="token bg-12" title="Token 27: ' prices'"> prices</span><span class="token bg-13" title="Token 28: '\n'">
-</span><span class="token bg-14" title="Token 29: ')'">)</span><span class="token bg-0" title="Token 30: ' where'"> where</span><span class="token bg-1" title="Token 31: ' w'"> w</span><span class="token bg-2" title="Token 32: 'avg'">avg</span><span class="token bg-3" title="Token 33: ' >'"> ></span><span class="token bg-4" title="Token 34: ' '"> </span><span class="token bg-5" title="Token 35: '100'">100</span></pre>
-</div-->
 
 Unsurprisingly, the Python version does have a higher token count; but, considering how terse APL and Q are, it is by a relatively small margin (only about 20-25 tokens!)
+
+<!--
+result·=·(prices
+····.groupby('sym')['price']
+····.apply(lambda·g:·g.tail(3).mean())
+····.to_frame(name='avg')·
+····.query('acg·>·100').index.tolist())
+-->
 
 <div class="output-section">
     <h4>Python (numpy, pandas): 49 tokens</h4>
