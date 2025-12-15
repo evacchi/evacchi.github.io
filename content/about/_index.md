@@ -7,11 +7,12 @@ permalink: /about/
 # About Me
 
 
-During my PhD I researched language design and implementation at [University of Milan](https://www.di.unimi.it). After three years at [UniCredit Bank's R&D department](https://unicredit.eu), I have joined Red Hat in the [KIE group](https://www.kie.org), where I worked on the [Drools rules engine](https://drools.org) and the [Kogito project](https://kogito.kie.org). I worked at [Tetrate](https://tetrate.io), as a member of the [wazero](https://wazero.io) development team.  
+During my PhD I researched language design and implementation at [University of Milan](https://www.di.unimi.it). After three years at [UniCredit Bank's R&D department](https://unicredit.eu), I have joined Red Hat in the [KIE group](https://www.kie.org), where I worked on the [Drools rules engine](https://drools.org) and the [Kogito project](https://kogito.kie.org). I moved to [Tetrate](https://tetrate.io), as a core maintainer of [wazero](https://wazero.io), the pure-Go Wasm Runtime; at [Dylibso](https://dylibso.com) I still contributed to [wazero](https://wazero.io), while also working on [Chicory](https://chicory.dev/), a pure-Java Wasm Runtime, and [Extism](https://extism.org/), the polyglot Wasm-based plug-in system.
 
-My continued love for programming language technology and compilers brought me to [Dylibso](https://dylibso.com): I still contribute to [wazero](https://wazero.io), and I now also work on [Chicory](https://chicory.dev/), [Extism](https://extism.org/) and [XTP](https://www.getxtp.com/)!
+I have now returned to Red Hat as a member of the AI Engineering team!
 
-## Research
+
+## Research and Patents
 
 - [ORCID](https://orcid.org/0000-0001-7174-1621)
 - [DBLP](https://dblp.org/pid/129/2265.html)
