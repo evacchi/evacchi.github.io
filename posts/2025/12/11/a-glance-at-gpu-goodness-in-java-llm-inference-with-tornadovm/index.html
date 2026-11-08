@@ -1,0 +1,310 @@
+<!doctype html><html lang=en-us><head><title>A Glance at GPU Goodness in Java: LLM Inference with TornadoVM | Middle of Nowhere</title><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge,chrome=1"><meta name=viewport content="width=device-width,minimum-scale=1"><meta name=description content="
+  
+
+
+This post was originally published at JVM Advent.
+
+It seems like it’s become a tradition that I announce I have joined a new company for the Java Advent of Code. At least this time it’s actually an old friend: I am excited to be back at Red Hat, in the llm-d team! Does that mean I forgot about Java? Of course not. If anything, this is an opportunity to learn more about GPU programming, and since Java is my comfort-zone language, what better occasion than looking into TornadoVM?"><meta name=generator content="Hugo 0.153.5"><meta name=ROBOTS content="NOINDEX, NOFOLLOW"><link rel=stylesheet href=/css/style.css><link rel=stylesheet href=/css/custom.css><link rel="shortcut icon" href=/images/favicon.ico type=image/x-icon><script async src="https://www.googletagmanager.com/gtag/js?id=G-JEBNMYFPPB"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-JEBNMYFPPB")</script></head><body><nav class=navigation><a href=/><span class=arrow>←</span>Home</a>
+<a href=/posts>Archive</a>
+<a href=/tags>Tags</a>
+<a href=/about>About</a></nav><main class=main><section id=single><h1 class=title>A Glance at GPU Goodness in Java: LLM Inference with TornadoVM</h1><div class=tip><time datetime="2025-12-11 00:00:00 +0000 UTC">Dec 11, 2025</time>
+<span class=split>·
+</span><span>2168 words
+</span><span class=split>·
+</span><span>11 minute read</span></div><div class=content><p><p class=markdown-image><img src=/assets/tornadovm/tornadovm-gpullama3.png alt="A Llama caught into a Tornado(VM)"></p></p><div style=padding:1em;background:#eee>This post was originally published at <a href=https://www.javaadvent.com/2025/12/a-glance-at-gpu-goodness-in-java-llm-inference-with-tornadovm.html>JVM Advent</a>.</div><p>It seems like it’s become a tradition that I announce I have joined a new company for the Java Advent of Code. At least this time it’s actually an old friend: I am excited to be back at Red Hat, in the <a href=https://llm-d.ai/ target=_blank rel=noopener>llm-d</a> team! Does that mean I forgot about Java? Of course not. If anything, this is an opportunity to learn more about GPU programming, and since Java is my comfort-zone language, what better occasion than looking into <a href=https://www.tornadovm.org/ target=_blank rel=noopener>TornadoVM</a>?</p><p>Recently, the TornadoVM team released <a href=https://www.tornadovm.org/gpullama3 target=_blank rel=noopener>gpullama3</a>, a proof-of-concept demonstrating LLM inference on GPUs using pure Java. Let’s explore this together!</p><h2 id=what-is-tornadovm>What is TornadoVM? <a href=#what-is-tornadovm class=anchor>🔗</a></h2><p><a href=https://www.tornadovm.org/ target=_blank rel=noopener>TornadoVM</a> is a plugin for the OpenJDK that enables Java programs to automatically run on heterogeneous hardware (GPUs, FPGAs, and multi-core CPUs) using standard Java code annotated for parallel compute.</p><p>Under the hood, TornadoVM:</p><ol><li>takes your Java bytecode</li><li>compiles it to GPU-specific kernels (via OpenCL, PTX, or SPIR-V)</li><li>manages data transfers between CPU and GPU memory</li><li>executes the computation on the GPU</li><li>returns the results back to your Java program</li></ol><p>Transformer-based language models are computationally expensive but highly-parallelizable. At inference time, generating each token requires matrix multiplications across billions of parameters. GPUs excel at these operations because they can perform thousands of computations in parallel. Thus, TornadoVM is the perfect tool for this kind of workload.</p><h1 id=installing-tornadovm>Installing TornadoVM <a href=#installing-tornadovm class=anchor>🔗</a></h1><p>Installing <code>GPULlama3.java</code> was surprisingly straightforward. Make sure you have your favorite flavor of JDK 21 installed. I use <code>sdkman</code>, so I made sure I had <a href=https://adoptium.net/temurin/releases target=_blank rel=noopener>Temurin 21</a> installed:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-text data-lang=text><span style=display:flex><span>sdk install java 21.0.9-tem
+</span></span></code></pre></div><p>Then you’ll want to make sure you have installed <code>cmake</code>, a C/C++ toolchain, Python and <code>pip</code>. Now you can clone the repo:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-text data-lang=text><span style=display:flex><span>git clone https://github.com/beehive-lab/GPULlama3.java
+</span></span></code></pre></div><p>and follow the instructions on the <a href="https://github.com/beehive-lab/GPULlama3.java?tab=readme-ov-file#install-build-and-run" target=_blank rel=noopener>README</a>; for instance, on macOS/Linux:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-text data-lang=text><span style=display:flex><span># Enter the TornadoVM submodule directory
+</span></span><span style=display:flex><span>cd external/tornadovm
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span># Optional: Create and activate a Python virtual environment if needed
+</span></span><span style=display:flex><span>python3 -m venv venv
+</span></span><span style=display:flex><span>source ./venv/bin/activate
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span># Install TornadoVM with a supported JDK 21 and select the backends (--backend opencl,ptx).
+</span></span><span style=display:flex><span># To see the compatible JDKs run: ./bin/tornadovm-installer --listJDKs
+</span></span><span style=display:flex><span># For example, to install with OpenJDK 21 and build the OpenCL backend, run:
+</span></span><span style=display:flex><span>./bin/tornadovm-installer --jdk jdk21 --backend opencl
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span># Source the TornadoVM environment variables
+</span></span><span style=display:flex><span>source setvars.sh
+</span></span></code></pre></div><p>You can verify the installation was successful by running one example:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash><span style=display:flex><span>cd tornado-examples
+</span></span><span style=display:flex><span>mvn package
+</span></span><span style=display:flex><span>cd ..
+</span></span><span style=display:flex><span>tornado -cp tornado-examples/target/tornado-examples-1.1.2-dev-e1d2d12.jar uk.ac.manchester.tornado.examples.compute.MatrixVectorRowMajor
+</span></span></code></pre></div><p>Of course, make sure you replace <code>tornado-examples-1.1.2-dev-e1d2d12.jar</code> with the right jar name! Your output should look something like this:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-text data-lang=text><span style=display:flex><span>WARNING: Using incubator modules: jdk.incubator.vector
+</span></span><span style=display:flex><span>Matrix-Vector Multiplication Benchmark
+</span></span><span style=display:flex><span>======================================
+</span></span><span style=display:flex><span>Configuration:
+</span></span><span style=display:flex><span>- Input dimension (columns): 8192
+</span></span><span style=display:flex><span>- Output dimension (rows): 2048
+</span></span><span style=display:flex><span>- Local work group size: 32
+</span></span><span style=display:flex><span>- Backend: OPENCL
+</span></span><span style=display:flex><span>- DP4A benchmarks enabled: false
+</span></span><span style=display:flex><span>- Warmup iterations: 140
+</span></span><span style=display:flex><span>- Benchmark iterations: 120
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>Initializing data...
+</span></span><span style=display:flex><span>Setting up TornadoVM execution...
+</span></span><span style=display:flex><span>Warming up sequential implementation...
+</span></span><span style=display:flex><span>Benchmarking sequential implementation...
+</span></span><span style=display:flex><span>Warming up parallel implementation...
+</span></span><span style=display:flex><span>Benchmarking parallel implementation...
+</span></span><span style=display:flex><span>Validating results...
+</span></span><span style=display:flex><span>Validation PASSED ✓
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>Performance Results:
+</span></span><span style=display:flex><span>====================
+</span></span><span style=display:flex><span>Matrix size: 2048 x 8192
+</span></span><span style=display:flex><span>Sequential Implementation:
+</span></span><span style=display:flex><span>  Average time: 15.892 ms
+</span></span><span style=display:flex><span>  Min time: 15.673 ms
+</span></span><span style=display:flex><span>  Max time: 16.795 ms
+</span></span><span style=display:flex><span>  Performance: 2.11 GFLOP/s
+</span></span><span style=display:flex><span>Parallel Implementation (TornadoVM):
+</span></span><span style=display:flex><span>  Average time: 2.405 ms
+</span></span><span style=display:flex><span>  Min time: 2.030 ms
+</span></span><span style=display:flex><span>  Max time: 5.069 ms
+</span></span><span style=display:flex><span>  Performance: 13.95 GFLOP/s
+</span></span><span style=display:flex><span>Pure TornadoVM @Parallel Implementation (TornadoVM):
+</span></span><span style=display:flex><span>  Average time: 4.931 ms
+</span></span><span style=display:flex><span>  Min time: 3.745 ms
+</span></span><span style=display:flex><span>  Max time: 8.357 ms
+</span></span><span style=display:flex><span>  Performance: 6.81 GFLOP/s
+</span></span><span style=display:flex><span>Parallel Implementation FP16 (TornadoVM):
+</span></span><span style=display:flex><span>  Average time: 1.840 ms
+</span></span><span style=display:flex><span>  Min time: 1.575 ms
+</span></span><span style=display:flex><span>  Max time: 3.090 ms
+</span></span><span style=display:flex><span>  Performance: 18.24 GFLOP/s
+</span></span><span style=display:flex><span>Q8 Vectorized:
+</span></span><span style=display:flex><span>  Average time: 1.746 ms
+</span></span><span style=display:flex><span>  Min time: 1.459 ms
+</span></span><span style=display:flex><span>  Max time: 6.097 ms
+</span></span><span style=display:flex><span>  Performance: 19.22 GFLOP/s
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>Speedup: KernelContext vs Java 6.61x
+</span></span><span style=display:flex><span>Speedup: @Parallel vs Java 3.22x
+</span></span><span style=display:flex><span>Speedup: KernelContext vs @Parallel 2.05x
+</span></span><span style=display:flex><span>Speedup: Q8 Vectorized vs KernelContext 1.38x
+</span></span><span style=display:flex><span>Speedup: Q8 Vectorized vs KernelContext FP16 1.05x
+</span></span></code></pre></div><h1 id=babys-first-gpu-kernel>Baby’s First GPU Kernel <a href=#babys-first-gpu-kernel class=anchor>🔗</a></h1><p>Here’s a simple <code>Example.java</code>:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>import</span> uk.ac.manchester.tornado.api.annotations.*;
+</span></span><span style=display:flex><span><span style=color:#00f>import</span> uk.ac.manchester.tornado.api.*;
+</span></span><span style=display:flex><span><span style=color:#00f>import</span> uk.ac.manchester.tornado.api.enums.DataTransferMode;
+</span></span><span style=display:flex><span><span style=color:#00f>import</span> uk.ac.manchester.tornado.api.types.arrays.FloatArray;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#00f>public</span> <span style=color:#00f>class</span> <span style=color:#2b91af>Example</span> {
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#00f>public</span> <span style=color:#00f>static</span> <span style=color:#2b91af>void</span> vectorMul(FloatArray a, FloatArray b, FloatArray result) {
+</span></span><span style=display:flex><span>        <span style=color:#00f>for</span> (@Parallel <span style=color:#2b91af>int</span> i = 0; i &lt; result.getSize(); i++) {
+</span></span><span style=display:flex><span>            result.set(i, a.get(i) * b.get(i));
+</span></span><span style=display:flex><span>        }
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#00f>public</span> <span style=color:#00f>static</span> <span style=color:#2b91af>void</span> main(String... args) {
+</span></span><span style=display:flex><span>        <span style=color:#2b91af>int</span> size = 1024;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>        <span style=color:#00f>var</span> a = <span style=color:#00f>new</span> FloatArray(size);
+</span></span><span style=display:flex><span>        <span style=color:#00f>var</span> b = <span style=color:#00f>new</span> FloatArray(size);
+</span></span><span style=display:flex><span>        <span style=color:#00f>var</span> result = <span style=color:#00f>new</span> FloatArray(size);
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>        <span style=color:#00f>for</span> (<span style=color:#2b91af>int</span> i = 0; i &lt; size; i++) {
+</span></span><span style=display:flex><span>            a.set(i, i * 2.0f);
+</span></span><span style=display:flex><span>            b.set(i, i + 1.0f);
+</span></span><span style=display:flex><span>        }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>        <span style=color:#00f>var</span> taskGraph = <span style=color:#00f>new</span> TaskGraph(<span style=color:#a31515>&#34;multiply&#34;</span>)
+</span></span><span style=display:flex><span>            .transferToDevice(DataTransferMode.FIRST_EXECUTION, a, b)
+</span></span><span style=display:flex><span>            .task(<span style=color:#a31515>&#34;vectorMul&#34;</span>, Example::vectorMul, a, b, result)
+</span></span><span style=display:flex><span>            .transferToHost(DataTransferMode.EVERY_EXECUTION, result);
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>        <span style=color:#00f>var</span> snapshot = taskGraph.snapshot();
+</span></span><span style=display:flex><span>        <span style=color:#00f>new</span> TornadoExecutionPlan(snapshot).execute();
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>        System.out.println(<span style=color:#a31515>&#34;\nVector Multiplication Results (first 10):&#34;</span>);
+</span></span><span style=display:flex><span>        <span style=color:#00f>for</span> (<span style=color:#2b91af>int</span> i = 0; i &lt; 10; i++) {
+</span></span><span style=display:flex><span>            System.out.printf(<span style=color:#a31515>&#34;result[%d] = %.2f (a[%d]=%.2f * b[%d]=%.2f)\n&#34;</span>,
+</span></span><span style=display:flex><span>                i, result.get(i), i, a.get(i), i, b.get(i));
+</span></span><span style=display:flex><span>        }
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>The <code>@Parallel</code> annotation tells TornadoVM this loop can be parallelized. The <code>TaskGraph</code> API manages data movement and execution scheduling. You can compile it with the following (if you followed the installation guide correctly <code>$TORNADO_SDK</code> will point to the right path):</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-text data-lang=text><span style=display:flex><span>javac -g --enable-preview -source 21 -cp &#34;$TORNADO_SDK/share/java/tornado/*&#34; Example.java
+</span></span></code></pre></div><p>Notice that <code>-g</code> is required for this to work correctly. Now you can run it with:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-text data-lang=text><span style=display:flex><span>tornado Example
+</span></span></code></pre></div><p>It will print the first 10 items in the resulting vector.</p><h2 id=playing-with-gpullama3java>Playing with <strong>GPULlama3</strong>.java <a href=#playing-with-gpullama3java class=anchor>🔗</a></h2><p>The <a href=https://www.tornadovm.org/gpullama3 target=_blank rel=noopener>gpullama3</a> project demonstrates running a Llama 3 model entirely in Java with GPU acceleration. Assuming you are back at the root of the repo, continue with the setup procedure.</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-text data-lang=text><span style=display:flex><span># Navigate back to the project root directory
+</span></span><span style=display:flex><span>cd ../../
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span># Source the project-specific environment paths -&amp;gt; this will ensure the correct paths are set for the project and the TornadoVM SDK
+</span></span><span style=display:flex><span># Expect to see: [INFO] Environment configured for Llama3 with TornadoVM at: /home/YOUR_PATH_TO_TORNADOVM
+</span></span><span style=display:flex><span>source set_paths
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span># Build the project using Maven (skip tests for faster build)
+</span></span><span style=display:flex><span># mvn clean package -DskipTests or just make
+</span></span><span style=display:flex><span>make
+</span></span></code></pre></div><p>Now let’s download a compatible model using the HuggingFace CLI:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-text data-lang=text><span style=display:flex><span># download and install the hugging face CLI
+</span></span><span style=display:flex><span>pip install -U huggingface_hub
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span># download a model to ./models/
+</span></span><span style=display:flex><span>hf download beehive-lab/Llama-3.2-1B-Instruct-GGUF-FP16 --include &#39;*.gguf&#39; --local-dir models
+</span></span></code></pre></div><p>Try it! Even on my poor MacBook Air with 8 GB RAM (provided I don’t have too many applications open) this returns:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-text data-lang=text><span style=display:flex><span>❯ python llama-tornado --gpu --verbose-init --opencl --model models/Llama-3.2-1B-Instruct-FP16.gguf --prompt &#34;tell me a joke&#34;
+</span></span><span style=display:flex><span>WARNING: Using incubator modules: jdk.incubator.vector
+</span></span><span style=display:flex><span>Loading model weights in TornadoVM format (loading F16)
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>Starting TornadoVM initialization...
+</span></span><span style=display:flex><span>TornadoVM GPU execution plan creation: 1011.56 ms
+</span></span><span style=display:flex><span>Java to GPU JIT compiler warmup: 4994.25 ms
+</span></span><span style=display:flex><span>Transfer read-only weights to GPU: 13958.97 ms
+</span></span><span style=display:flex><span>Finished TornadoVM initialization...
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>Here&#39;s one:
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>What do you call a fake noodle?
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>(wait for it...)
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>An impasta!
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>Hope that made you laugh!
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>achieved tok/s: 3.00. Tokens: 42, seconds: 13.98
+</span></span></code></pre></div><p>Disclaimer: even if you have better CPU/GPUs at your disposal, they are unlikely to affect the quality of the joke.</p><h1 id=what-just-happened>What just happened? <a href=#what-just-happened class=anchor>🔗</a></h1><p>GPULlama3.java currently supports a few FP16 (16-bit floating point) and 8-bit quantized models:</p><ul><li>Llama 3.2 (1B) – FP16</li><li>Llama 3.2 (3B) – FP16</li><li>Llama 3 (8B) – FP16</li><li>Mistral (7B) – FP16</li><li>Qwen3 (0.6B) – FP16</li><li>Qwen3 (1.7B) – FP16</li><li>Qwen3 (4B) – FP16</li><li>Qwen3 (8B) – FP16</li><li>Phi-3-mini-4k – FP16</li><li>Qwen2.5 (0.5B)</li><li>Qwen2.5 (1.5B)</li><li>DeepSeek-R1-Distill-Qwen (1.5B)</li></ul><p>Depending on the model being selected, a different execution plan will be built. The execution plan corresponds to the model architecture. In our case, we picked the unquantized <strong>Llama 3.2 1B FP16</strong>. Let’s take a look at the <code>setupTornadoForwardPlan()</code> method in FP16LayerPlanner, used by LLama 3.2:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#00f>abstract</span> <span style=color:#00f>class</span> <span style=color:#2b91af>FP16LayerPlanner</span> ... {
+</span></span><span style=display:flex><span>    ...
+</span></span><span style=display:flex><span>    <span style=color:#00f>protected</span> <span style=color:#00f>final</span> <span style=color:#2b91af>void</span> setupTornadoForwardPlan() {
+</span></span><span style=display:flex><span>        List&lt;ImmutableTaskGraph&gt; allTaskGraphs = <span style=color:#00f>new</span> ArrayList&lt;&gt;();
+</span></span><span style=display:flex><span>        GridScheduler masterScheduler = <span style=color:#00f>new</span> GridScheduler();
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>        <span style=color:green>// 1. Activation layer (common to all models)</span>
+</span></span><span style=display:flex><span>        allTaskGraphs.add(activationLayer.getImmutableTaskGraph());
+</span></span><span style=display:flex><span>        activationLayer.updateGridScheduler(masterScheduler);
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>        <span style=color:green>// 2. FFN layers (N transformer layers - model-specific)</span>
+</span></span><span style=display:flex><span>        allTaskGraphs.addAll(ffnLayers.getFfnLayerTaskGraphs());
+</span></span><span style=display:flex><span>        ffnLayers.updateGridScheduler(masterScheduler);
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>        <span style=color:green>// 3. Logits layer (common to all models)</span>
+</span></span><span style=display:flex><span>        allTaskGraphs.add(logitsLayer.getTaskGraph().snapshot());
+</span></span><span style=display:flex><span>        logitsLayer.updateGridScheduler(masterScheduler);
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>        <span style=color:green>// Cache for future retrievals</span>
+</span></span><span style=display:flex><span>        <span style=color:#00f>this</span>.immutableTaskGraphs = allTaskGraphs;
+</span></span><span style=display:flex><span>        <span style=color:#00f>this</span>.gridScheduler = masterScheduler;
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>In the <strong>Activation layer</strong> we mostly look up token embeddings and apply an initial normalization step, while the <strong>Logit layer</strong> is where we convert the model’s internal representation into token predictions. So let’s concentrate a bit more on the <strong>Feed-Forward Network layer</strong> <strong>(FFN)</strong>, and in particular on the <strong>Attention</strong> implementation. The <a href=https://github.com/beehive-lab/GPULlama3.java/blob/0060fc66f30b8f023d84bc3bc5c031f26c262bae/src/main/java/org/beehive/gpullama3/tornadovm/layers/type/fp16/LlamaFP16FFNLayers.java#L99 target=_blank rel=noopener><code>LlamaFP16FFNLayers#setupSingleFFNLayer</code> method</a> is a bit cryptic at a first glance; let’st start from its signature:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>TaskGraph setupSingleFFNLayer(LlamaTornadoWeights weights, Configuration config, <span style=color:#2b91af>int</span> layerIndex)
+</span></span></code></pre></div><p>The method is building a <code>TaskGraph</code>, essentially describing the data flow of our GPU kernels. Let’s focus on QKV and attention, using <a href=https://github.com/rasbt/LLMs-from-scratch/blob/main/ch05/07_gpt_to_llama/standalone-llama32.ipynb target=_blank rel=noopener>Sebastian Raschka</a><sup id=fnref:1><a href=#fn:1 class=footnote-ref role=doc-noteref>1</a></sup><a href=https://github.com/rasbt/LLMs-from-scratch/blob/main/ch05/07_gpt_to_llama/standalone-llama32.ipynb target=_blank rel=noopener>‘s excellent Python Notebook as a reference</a>. The following is the architecture diagram of the Llama 3.2 1B model:</p><p><a href=/assets/tornadovm/llama321b.png><p class=markdown-image><img src=/assets/tornadovm/llama321b.png alt></p></a></p><p>For obvious reasons of brevity, we aren’t going to explore this in detail, but we do want to take a look at the implementation of the <a href=https://en.wikipedia.org/wiki/Attention_%28machine_learning%29 target=_blank rel=noopener>attention heads</a>. In particular, let’s take a look at how we compute the Query, Key, Value matrices (<code>Q,K,V = project(x)</code> in the Python version):</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>.task(<span style=color:#a31515>&#34;qmatmul&#34;</span>,
+</span></span><span style=display:flex><span>        TransformerComputeKernelsLayered::matrixVectorGeneric, context,
+</span></span><span style=display:flex><span>        state.wrapXb, state.wrapQ,
+</span></span><span style=display:flex><span>        weights.wqLayered[layerIndex].asHalfFloatArray(),
+</span></span><span style=display:flex><span>        config.dim(), config.dim(),
+</span></span><span style=display:flex><span>        LOCAL_WORK_GROUP_SIZE_ALLOC)
+</span></span><span style=display:flex><span>.task(<span style=color:#a31515>&#34;kmatmul&#34;</span>,
+</span></span><span style=display:flex><span>        TransformerComputeKernelsLayered::matrixVectorGeneric, context,
+</span></span><span style=display:flex><span>        state.wrapXb, state.wrapK,
+</span></span><span style=display:flex><span>        weights.wkLayered[layerIndex].asHalfFloatArray(),
+</span></span><span style=display:flex><span>        config.dim(), config.kvDim(),
+</span></span><span style=display:flex><span>        LOCAL_WORK_GROUP_SIZE_ALLOC)
+</span></span><span style=display:flex><span>.task(<span style=color:#a31515>&#34;vmatmul&#34;</span>,
+</span></span><span style=display:flex><span>        TransformerComputeKernelsLayered::matrixVectorGeneric, context,
+</span></span><span style=display:flex><span>        state.wrapXb, state.wrapV,
+</span></span><span style=display:flex><span>        weights.wvLayered[layerIndex].asHalfFloatArray(),
+</span></span><span style=display:flex><span>        config.dim(), config.kvDim(),
+</span></span><span style=display:flex><span>        LOCAL_WORK_GROUP_SIZE_ALLOC)
+</span></span></code></pre></div><p>This is followed by the RoPE rescaling to encode token positions:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>.task(<span style=color:#a31515>&#34;rope&#34;</span>, TransformerComputeKernelsLayered::ropeRotation, context,
+</span></span><span style=display:flex><span>        state.positionHolder,
+</span></span><span style=display:flex><span>        state.wrapQ, state.wrapK,
+</span></span><span style=display:flex><span>        config.kvDim(),
+</span></span><span style=display:flex><span>        config.headSize())
+</span></span></code></pre></div><p>Now we are ready to compute <strong>attention.</strong> The generic version (there is also an NVidia-specific implementation) is:</p><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span>unifiedLayer.task(<span style=color:#a31515>&#34;parallel-attention&#34;</span>, TransformerComputeKernelsLayered::processHeadsParallel,
+</span></span><span style=display:flex><span>        state.wrapQ, state.wrapKeyCache, state.wrapValueCache, state.wrapXb,
+</span></span><span style=display:flex><span>        config.numberOfHeads(), config.headSize(), config.kvDim(), config.kvMul(),
+</span></span><span style=display:flex><span>             config.contextLength(),
+</span></span><span style=display:flex><span>        state.positionHolder, state.wrapAtt,
+</span></span><span style=display:flex><span>        layerIndex, config.contextLength());
+</span></span></code></pre></div><p>Let’s drill down into <code>TransformerComputeKernelsLayered::processHeadsParallel</code> to see how that is performed. The following is one of the GPU kernels. It essentially computes:</p><div style=text-align:center><img src=/assets/tornadovm/attention-formula.png width=349 alt="Attention(Q, K, V) = Softmax(Q K^T / sqrt(d_k)) V"></div><p>You will notice that the method:</p><ol><li>takes the <code>Q,K</code> <strong>(Query, Key) vectors</strong> that we computed earlier and it computes the attention score up to the current position <code>pos</code> (scaled by the square root of the head size), filling the <code>wrapAtt</code> vector</li><li>next, it applies <code>softmax</code> to the <code>wrapAtt</code>, turning the scores into attention weights (steps 2-4), accumulating partial results onto the same <code>wrapAtt</code> vector</li><li>finally (step 5) it computes a weighted sum of the <strong>Value vectors</strong> (<code>value_cache</code>) up to <code>pos</code>, using the calculated <strong>Attention Weights</strong> (<code>wrapAtt</code>).</li></ol><div class=highlight><pre tabindex=0 style=background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:green>/**
+</span></span></span><span style=display:flex><span><span style=color:green> * Computes attention for a single head. Implements scaled dot-product attention with softmax normalization.
+</span></span></span><span style=display:flex><span><span style=color:green> *
+</span></span></span><span style=display:flex><span><span style=color:green> * Steps: 1. Compute attention scores: Q·K / sqrt(head_size) 2. Apply softmax (with max subtraction for numerical stability) 3. Compute weighted sum of values
+</span></span></span><span style=display:flex><span><span style=color:green> *
+</span></span></span><span style=display:flex><span><span style=color:green> * @param allQ
+</span></span></span><span style=display:flex><span><span style=color:green> *         All query vectors
+</span></span></span><span style=display:flex><span><span style=color:green> * @param key_cache
+</span></span></span><span style=display:flex><span><span style=color:green> *         Cached keys
+</span></span></span><span style=display:flex><span><span style=color:green> * @param value_cache
+</span></span></span><span style=display:flex><span><span style=color:green> *         Cached values
+</span></span></span><span style=display:flex><span><span style=color:green> * @param allXb
+</span></span></span><span style=display:flex><span><span style=color:green> *         Output buffer
+</span></span></span><span style=display:flex><span><span style=color:green> * @param h
+</span></span></span><span style=display:flex><span><span style=color:green> *         Head index to process
+</span></span></span><span style=display:flex><span><span style=color:green> * @param headSize
+</span></span></span><span style=display:flex><span><span style=color:green> *         Dimension per head
+</span></span></span><span style=display:flex><span><span style=color:green> * @param kvDim
+</span></span></span><span style=display:flex><span><span style=color:green> *         Key/value dimension
+</span></span></span><span style=display:flex><span><span style=color:green> * @param kvMul
+</span></span></span><span style=display:flex><span><span style=color:green> *         Key multiplier for grouped attention
+</span></span></span><span style=display:flex><span><span style=color:green> * @param loff
+</span></span></span><span style=display:flex><span><span style=color:green> *         Layer offset in cache
+</span></span></span><span style=display:flex><span><span style=color:green> * @param pos
+</span></span></span><span style=display:flex><span><span style=color:green> *         Current position
+</span></span></span><span style=display:flex><span><span style=color:green> * @param wrapAtt
+</span></span></span><span style=display:flex><span><span style=color:green> *         Attention weights buffer
+</span></span></span><span style=display:flex><span><span style=color:green> */</span>
+</span></span><span style=display:flex><span><span style=color:#00f>private</span> <span style=color:#00f>static</span> <span style=color:#2b91af>void</span> processHeadTornado(FloatArray allQ, FloatArray key_cache, FloatArray value_cache, FloatArray allXb, <span style=color:#2b91af>int</span> h, <span style=color:#2b91af>int</span> headSize, <span style=color:#2b91af>int</span> kvDim, <span style=color:#2b91af>int</span> kvMul, <span style=color:#2b91af>long</span> loff, <span style=color:#2b91af>int</span> pos,
+</span></span><span style=display:flex><span>        FloatArray wrapAtt) {
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:green>// Base index for this head&#39;s attention weights</span>
+</span></span><span style=display:flex><span>    <span style=color:#2b91af>int</span> headOffset = h * (pos + 1);
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:green>// STEP 1: Calculate attention scores for all timesteps</span>
+</span></span><span style=display:flex><span>    <span style=color:#00f>for</span> (<span style=color:#2b91af>int</span> t = 0; t &lt;= pos; t++) {
+</span></span><span style=display:flex><span>        <span style=color:#2b91af>int</span> kvHeadIdx = h / kvMul;
+</span></span><span style=display:flex><span>        <span style=color:#2b91af>int</span> keyOffset = (<span style=color:#2b91af>int</span>) (loff + t * kvDim + kvHeadIdx * headSize);
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>        <span style=color:#2b91af>float</span> score = 0.0f;
+</span></span><span style=display:flex><span>        <span style=color:#00f>for</span> (<span style=color:#2b91af>int</span> i = 0; i &lt; headSize; i++) {
+</span></span><span style=display:flex><span>            score += allQ.get(h * headSize + i) * key_cache.get(keyOffset + i);
+</span></span><span style=display:flex><span>        }
+</span></span><span style=display:flex><span>        score = score / TornadoMath.sqrt(headSize);
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>        <span style=color:green>// Store in attention buffer</span>
+</span></span><span style=display:flex><span>        wrapAtt.set(headOffset + t, score);
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:green>// STEP 2: Find max score for softmax stability</span>
+</span></span><span style=display:flex><span>    <span style=color:#2b91af>float</span> maxScore = wrapAtt.get(headOffset);
+</span></span><span style=display:flex><span>    <span style=color:#00f>for</span> (<span style=color:#2b91af>int</span> t = 1; t &lt;= pos; t++) {
+</span></span><span style=display:flex><span>        <span style=color:#2b91af>float</span> val = wrapAtt.get(headOffset + t);
+</span></span><span style=display:flex><span>        <span style=color:#00f>if</span> (val &gt; maxScore) {
+</span></span><span style=display:flex><span>            maxScore = val;
+</span></span><span style=display:flex><span>        }
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:green>// STEP 3: Compute exponentials and sum</span>
+</span></span><span style=display:flex><span>    <span style=color:#2b91af>float</span> sum = 0.0f;
+</span></span><span style=display:flex><span>    <span style=color:#00f>for</span> (<span style=color:#2b91af>int</span> t = 0; t &lt;= pos; t++) {
+</span></span><span style=display:flex><span>        <span style=color:#2b91af>int</span> idx = headOffset + t;
+</span></span><span style=display:flex><span>        <span style=color:#2b91af>float</span> expScore = TornadoMath.exp(wrapAtt.get(idx) - maxScore);
+</span></span><span style=display:flex><span>        wrapAtt.set(idx, expScore);
+</span></span><span style=display:flex><span>        sum += expScore;
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:green>// STEP 4: Normalize</span>
+</span></span><span style=display:flex><span>    <span style=color:#2b91af>float</span> normFactor = (sum &gt; 0.0f) ? (1.0f / sum) : (1.0f / (pos + 1));
+</span></span><span style=display:flex><span>    <span style=color:#00f>for</span> (<span style=color:#2b91af>int</span> t = 0; t &lt;= pos; t++) {
+</span></span><span style=display:flex><span>        <span style=color:#2b91af>int</span> idx = headOffset + t;
+</span></span><span style=display:flex><span>        wrapAtt.set(idx, wrapAtt.get(idx) * normFactor);
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:green>// STEP 5: Compute weighted sum of values for each dimension</span>
+</span></span><span style=display:flex><span>    <span style=color:#00f>for</span> (<span style=color:#2b91af>int</span> i = 0; i &lt; headSize; i++) {
+</span></span><span style=display:flex><span>        <span style=color:#2b91af>float</span> weightedSum = 0.0f;
+</span></span><span style=display:flex><span>        <span style=color:#00f>for</span> (<span style=color:#2b91af>int</span> t = 0; t &lt;= pos; t++) {
+</span></span><span style=display:flex><span>            <span style=color:#2b91af>int</span> kvHeadIdx = h / kvMul;
+</span></span><span style=display:flex><span>            <span style=color:#2b91af>int</span> valueOffset = (<span style=color:#2b91af>int</span>) (loff + t * kvDim + kvHeadIdx * headSize);
+</span></span><span style=display:flex><span>            weightedSum += wrapAtt.get(headOffset + t) * value_cache.get(valueOffset + i);
+</span></span><span style=display:flex><span>        }
+</span></span><span style=display:flex><span>        allXb.set(h * headSize + i, weightedSum);
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>After the attention mechanism computes relationships between tokens, the result is added to the original input, normalized, and passed through a feed-forward network. This process repeats across multiple layers before finally producing the next-token prediction (the <em>logit layer</em>).</p><p>Because it’s an <em>autoregressive</em> model, this entire process repeats for each token, using the previously generated sequence as input.</p><p>In short, TornadoVM handled GPU compilation and execution transparently, allowing a pure Java program to perform LLM inference!</p><h1 id=conclusions>Conclusions <a href=#conclusions class=anchor>🔗</a></h1><p>We’ve completed our whirlwind tour of <strong>Llama3GPU.java</strong> and <strong>TornadoVM</strong>. If your head is still spinning, don’t worry, you’re not alone! It’s a lot to take in, but I hope this post has sparked your interest and inspired you to dig deeper: I know I will!</p><div class=footnotes role=doc-endnotes><hr><ol><li id=fn:1><p>Sebastian Raschka is the author of <a href=https://github.com/rasbt/LLMs-from-scratch target=_blank rel=noopener>Build a Large Language Model from Scratch</a>&#160;<a href=#fnref:1 class=footnote-backref role=doc-backlink>&#8617;&#xfe0e;</a></p></li></ol></div></div></section></main><footer id=footer><div class=social><a class="symbol bluesky" href=https://bsky.app/profile/evacchi.dev rel=me target=_blank></a><a class="symbol github" href=https://github.com/evacchi rel=me target=_blank></a><a class="symbol linkedin" href=https://linkedin.com/in/edoardovacchi rel=me target=_blank></a><a class="symbol mastodon" href=https://mastodon.social/@evacchi rel=me target=_blank></a><a class="symbol twitter" href=https://twitter.com/evacchi rel=me target=_blank></a></div><div class=copyright>© Copyright
+2026
+<span class=split><svg fill="#bbb" width="15" height="15" id="heart-15" width="15" height="15" viewBox="0 0 15 15"><path d="M13.91 6.75c-1.17 2.25-4.3 5.31-6.07 6.94-.1903.1718-.4797.1718-.67.0C5.39 12.06 2.26 9 1.09 6.75-1.48 1.8 5-1.5 7.5 3.45 10-1.5 16.48 1.8 13.91 6.75z"/></svg>
+</span>Edoardo Vacchi</div><div class=powerby>Powered by <a href=http://www.gohugo.io/>Hugo</a> Theme By <a href=https://github.com/nodejh/hugo-theme-mini>nodejh</a></div></footer></body></html>
